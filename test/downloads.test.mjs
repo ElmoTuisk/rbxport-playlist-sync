@@ -64,6 +64,32 @@ test('known low-quality formats are reported as found but rejected, not download
  await assert.rejects(f.d.acquire(track,{id:'test'},()=>{},new AbortController().signal),e=>e.code==='QUALITY_REVIEW'&&/Recordings were found/.test(e.message));
  assert.equal(f.downloaded.length,0);
 });
+
+test('matching lower-quality files are offered without download and explicit source inspection reports their real choice',async t=>{
+ const f=await fixture(t),updates=[],low=candidate('low',{formats:[{format_id:'mp3-128',ext:'mp3',acodec:'mp3',abr:128}]});
+ f.d.metadata=async()=>({entries:[low]});
+ await assert.rejects(f.d.acquire(track,{id:'test'},x=>updates.push(x),new AbortController().signal),e=>e.code==='QUALITY_REVIEW');
+ assert.equal(f.downloaded.length,0);const option=updates.find(x=>x.lowerOptions?.length).lowerOptions[0];assert.match(option.label,/MP3.*128 kbps/);assert.equal(option.formatId,'mp3-128');
+ f.d.metadata=async()=>low;const inspection=await f.d.inspectSource(track,low.webpage_url);assert.equal(inspection.normal,false);assert.equal(inspection.lowerOptions[0].id,option.id);
+ f.d.metadata=async()=>({...low,duration:500});await assert.rejects(f.d.inspectSource(track,low.webpage_url),/length does not match/);
+});
+
+test('approved web downloads pin the exact source format and never silently choose a replacement',async t=>{
+ const f=await fixture(t),low={format_id:'low',ext:'mp3',acodec:'mp3',abr:128},item=candidate('chosen',{formats:[low,{...low,format_id:'high',abr:320}]}),option=f.d.lowerOption(track,item,low),run=f.d.runner,formats=[];
+ f.d.metadata=async()=>item;f.d.runner=async(exe,args,options)=>{if(exe==='fixture-ytdlp')formats.push(args[args.indexOf('-f')+1]);return run(exe,args,options);};
+ f.d.verify=async(path,track,signal,output,options)=>{assert(options.allowLower);return{ok:true,codec:'mp3',bitrate:128,belowStandard:true};};
+ const result=await f.d.acquire(track,{id:'approved',overrideUrl:option.url,qualityApproval:option},()=>{},new AbortController().signal);
+ assert.deepEqual(formats,['low']);assert.match(result.file,/LOWER MP3 128k/);assert(result.quality.belowStandard);
+ f.d.metadata=async()=>({...item,formats:[{...low,format_id:'replacement'}]});
+ await assert.rejects(f.d.acquire(track,{id:'changed',overrideUrl:option.url,qualityApproval:option},()=>{},new AbortController().signal),e=>e.code==='QUALITY_REVIEW');assert.equal(formats.length,1);
+});
+
+test('unknown actual bitrate needs fresh consent rather than inheriting a reported bitrate',async t=>{
+ const f=await fixture(t),format={format_id:'one',acodec:'opus',ext:'opus',abr:128},item=candidate('unknown',{formats:[format]}),approval=f.d.lowerOption(track,item,format),updates=[];
+ f.d.metadata=async()=>item;f.d.verify=async()=>({codec:'opus',bitrate:0,duration:200,belowStandard:true});
+ await assert.rejects(f.d.acquire(track,{id:'unknown',overrideUrl:approval.url,qualityApproval:approval},x=>updates.push(x),new AbortController().signal),e=>e.code==='LOWER_CONFIRM');
+ const verified=updates.filter(x=>x.lowerOptions).at(-1).lowerOptions[0];assert.equal(verified.bitrate,0);assert(verified.verified);assert.match(verified.label,/bitrate not reported/);
+});
 test('provisional metadata never approves a known low-bitrate or wrong-codec MP3',()=>{
  assert.equal(candidateFormats({formats:[{ext:'mp3'}]}).length,1);
  for(const bad of [{ext:'mp3',acodec:'aac'},{ext:'mp3',abr:128},{ext:'mp3',bit_rate:'128000'}])assert.equal(candidateFormats({formats:[bad]}).length,0);

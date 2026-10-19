@@ -71,7 +71,11 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       case 'cancel': engine.cancel(); break;
       case 'automatic': engine.updateLink(args.id, { automatic: args.automatic === true }); break;
       case 'link': { const link = await engine.addLink(args); selected = link.id; selectionRevision++; hostInfo = await bridge.call('info'); startSync(link.id, true); break; }
-      case 'resolve': await engine.resolveRow(args.id, args); break;
+      case 'resolve': {
+        const result=await engine.resolveRow(args.id,args);
+        if(result?.startDownload){runningSync=engine.downloadRow(args.id);void runningSync.catch(()=>{}).finally(()=>{runningSync=null;});}
+        return result || {ok:true};
+      }
       case 'match-plan': return engine.bulkMatchPlan(args.id,args);
       case 'accept-matches': return engine.acceptBulkMatches(args.id,args);
       case 'settings': engine.saveSettings(args); break;
@@ -155,7 +159,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
         return json({ started: true });
       }
       if (req.method === 'POST' && url.pathname === '/api/cancel') { engine.cancel(); return json({ ok: true }); }
-      if (req.method === 'POST' && url.pathname === '/api/resolve') { await engine.resolveRow(body.id, body); return json({ ok: true }); }
+      if (req.method === 'POST' && url.pathname === '/api/resolve') return json(await action('resolve',body));
       return json({ error: 'Not found' }, 404);
     } catch (error) { json({ error: error.message || 'Request failed' }, 400); }
   });

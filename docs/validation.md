@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-85 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+95 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,12 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Per-song lower-quality choices 0.7.0
+
+Ten additional regression tests cover discovery offers without acquisition, exact-format approval with no replacement fallback, per-song URL and local-file confirmation, normal-quality source selection, retained URLs/errors, targeted downloads leaving other rows alone, and the renderer's separate confirmation/draft persistence. Real FFmpeg tests compare copied MP3/AAC packet hashes and decoded 24-bit PCM hashes for Opus-to-FLAC playback output. Lower-than-approved or unexpectedly unknown bitrate holds the verified file for fresh confirmation. Existing strict audio and full-decoding tests remain enabled.
+
+The running native panel (injection version 13) was checked with a real source offering reported AAC at 160 and 96 kbps. Source selection waited for confirmation, the URL remained visible, the confirmation stayed inside the app viewport and its final button was reachable. No real quality exception was approved and no lower-quality audio was downloaded or imported. Independent target-ID checks confirmed unchanged playlist entries/order and unchanged global audio settings. Live approval/import of this particular source is still for the user; synthetic tests establish the publishing and targeted import behavior separately.
 
 ## SoundCloud metadata and collection reuse 0.6.2
 

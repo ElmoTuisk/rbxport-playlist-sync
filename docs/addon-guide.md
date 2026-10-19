@@ -4,12 +4,12 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.6.2, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.7.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.6.2-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
+2. Download `playlist-sync-0.7.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -43,7 +43,9 @@ Resolved source tracks come first in source order. Extra local songs stay at the
 
 **Accept suggested matches** opens a bulk preview for existing-match reviews. It shows a count and collapsible list, excludes alternate lengths/versions by default, and offers an explicit checkbox to include those. **Accept N & reorder** links the accepted existing files and immediately places all known source songs in the last checked Spotify/SoundCloud order. Extra local songs remain at the bottom in their existing relative order. Missing files and tied choices remain for individual review. Current library/files, target membership and the preview signature are revalidated. The action performs no downloads, imports or deletions; no separate Sync is required. Normal Sync refreshes the online source and processes missing songs. Duplicate target memberships block the bulk operation. Stop or finish an active sync before accepting.
 
-**Check existing match** means a local candidate needs confirmation. **Check source** means acquisition needs attention. Resolve opens directly below that song, scrolls into view and shows the exact reason. Choose a suggested existing collection track, a file, another source URL, retry or ignore; save, then Sync to process the choice. A manual source does not bypass quality checks.
+**Check existing match** means a local candidate needs confirmation. **Check source** means acquisition needs attention. Resolve opens directly below that song, scrolls into view and shows the exact reason. Existing-match/retry/ignore choices are saved for Sync. Source URLs and selected files are inspected first; normal-quality choices start processing just that song. Lower-quality choices wait for separate approval. URLs, paths and drafts remain visible after errors and refreshes.
+
+**Lower-quality audio available** lists matching sources found during discovery or source inspection. Select a format, click **Review lower-quality file**, check the reported/verified codec, bitrate and source, then **Confirm & download**. Approval is for this song, URL and format only, with no global quality change. A changed codec or materially lower actual bitrate requires a fresh confirmation. MP3/AAC packets are preserved; Opus/Vorbis is decoded to FLAC for compatible playback and labelled with the original source quality, never described as a lossless original. Filenames, comments and playlist details mark the exception. Duration, full decoding, stereo, sample-rate and DRM rules remain enforced.
 
 The whole rbxport collection is checked first, including files used in other playlists. SoundCloud uploader/label artist tags are handled separately from performer tags: a unique file can match when the complete normalized upload title is identical and contains the source performer credit, with matching duration and version. Bracketed featured credits and equivalent multi-artist lists are normalized without merging different mixes. Recheck files refreshes stale missing/source warnings without downloading or changing your playlist.
 
@@ -69,7 +71,7 @@ The default audio standard produces **320 kbps MP3** from a 320 kbps MP3 or loss
 
 Checks include stereo audio, at least 44.1 kHz, exactly one audio stream, full decoding and independent decoded duration. Duration tolerance is max(3 seconds, min(8 seconds, 2% of source duration)). Candidate discovery also compares artist/title/version and rejects previews, compilations and live streams.
 
-AAC below the selected threshold, Opus and lower-bitrate MP3 do not become better by encoding them to 320 kbps, so they are rejected. YouTube sources often fail this strict requirement. A manual URL does not bypass duration or audio checks. Supply an original or purchased file when no qualifying source is available.
+AAC below the selected threshold, Opus and lower-bitrate MP3 do not become better by encoding them to 320 kbps. Automatic sync holds those sources for review; you can explicitly approve one song as described above. A manual URL does not bypass duration or file checks. If no usable recording is available, supply an original or purchased file.
 
 Format checks cannot prove a recording's historical quality: previously upscaled files or lossy audio stored as FLAC can evade them. Existing collection files are reused and are not certified or replaced by this release. Only acquire audio you are entitled to download.
 

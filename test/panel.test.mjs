@@ -14,7 +14,7 @@ function fixture(send=async()=>({ok:true})) {
   const initial = { connected: true, selectionRevision: 1, selected: null, links: [
     { id: 'a', name: 'Fixture playlist A', lastCheck: 1 }, { id: 'b', name: 'Fixture playlist B', lastCheck: 1 }
   ], rows: { a: Array.from({length:85}, (_, i) => row(`a-${i}`, `Fixture song ${i}`)), b: [row('b-0', 'Different playlist song')] } };
-  const mount = runInNewContext(`(${mountPanel.toString()})`, {document, requestAnimationFrame: callback => callback()});
+  const mount = runInNewContext(`(${mountPanel.toString()})`, {document,FormData:class{constructor(form){return Object.entries(form.values || {});}}, requestAnimationFrame: callback => callback()});
   const controller = mount(root, initial, send);
   const click = (action, id) => events.click({target:{closest: () => ({dataset:{action,id}})}});
   return {root, document, initial, controller, click,events};
@@ -32,6 +32,19 @@ test('Resolve opens immediately after the chosen song in a long missing-track li
   assert.match(root.innerHTML, /No qualifying source/);
   await click('review', 'a-42');
   assert.doesNotMatch(root.innerHTML, /data-form="resolve"/);
+});
+
+test('lower-quality download requires a separate confirmation and source URL drafts survive errors and refreshes',async()=>{
+ const calls=[],f=fixture(async(action,args)=>{calls.push({action,args});if(args.action==='source')throw Error('Source unavailable; URL kept');return{message:'Lower-quality exception approved. Starting download.'};});
+ const option={id:'a'.repeat(64),url:'https://soundcloud.com/fixture/low',title:'Fixture lower file',codec:'mp3',bitrate:128,label:'MP3 · 128 kbps · reported',duration:200};
+ const model={...f.initial,selected:'a',selectionRevision:2,jobs:[{rowId:'a-0',status:'review',overrideUrl:option.url,lowerOptions:[option]}]};
+ f.controller.update(model);await f.click('review','a-0');assert.match(f.root.innerHTML,/Lower-quality audio available/);assert.match(f.root.innerHTML,/value="https:\/\/soundcloud.com\/fixture\/low"/);
+ await f.click('lower-review','a-0');assert.match(f.root.innerHTML,/Confirm & download/);assert.equal(calls.length,0);
+ await f.click('lower-confirm','a-0');assert.equal(calls.length,1);assert.equal(calls[0].args.action,'lower');assert.equal(calls[0].args.optionId,option.id);assert.match(f.root.innerHTML,/Starting download/);
+ const edited='https://soundcloud.com/fixture/edited';
+ await f.events.submit({preventDefault(){},target:{dataset:{form:'resolve',id:'a-0'},values:{action:'source',url:edited}}});
+ assert.match(f.root.innerHTML,/Source unavailable; URL kept/);assert.match(f.root.innerHTML,/value="https:\/\/soundcloud.com\/fixture\/edited"/);assert.match(f.root.innerHTML,/data-form="resolve"/);
+ f.controller.update({...model,revision:3});assert.match(f.root.innerHTML,/value="https:\/\/soundcloud.com\/fixture\/edited"/);
 });
 
 test('selecting another playlist refreshes visible rows even while an old resolution field has focus', async () => {

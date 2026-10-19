@@ -195,7 +195,7 @@ export class Engine {
           }
         }
       }
-      else await this.downloads.verify(job.file, row.track, signal, true);
+      else await this.downloads.verify(job.file, row.track, signal, true,{allowLower:Boolean(job.qualityApproval)});
       signal.throwIfAborted();
       update({ status: 'importing', message: 'Importing verified file into rbxport' });
       const imported = await this.bridge.call('import', { libraryId: link.libraryId, paths: [job.file] });
@@ -210,14 +210,38 @@ export class Engine {
         await this.bridge.call('analyse', { libraryId: link.libraryId, id: local.id }); update({ analysed: true });
       }
       update({ status: 'ready', message: 'Ready in rbxport', progress: '' });
-      this.store.put('rows', row.id, { ...row, localId: local.id, status: 'ready', reason: 'Downloaded, validated and imported' }); return true;
+      const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard)}:undefined;
+      this.store.put('rows', row.id, { ...row, localId: local.id, status: 'ready',audioQuality, reason: audioQuality?.belowStandard?`Ready · ${audioQuality.codec.toUpperCase()} ${Math.round(audioQuality.bitrate || 0)} kbps · quality exception`:'Downloaded, validated and imported' }); return true;
     } catch (error) {
-      const status = signal.aborted ? 'cancelled' : error.code === 'QUALITY_REVIEW' || /Quality check/.test(error.message) ? 'review' : 'failed';
+      const status = signal.aborted ? 'cancelled' : ['QUALITY_REVIEW','LOWER_CONFIRM'].includes(error.code) || /Quality check/.test(error.message) ? 'review' : 'failed';
       update({ status, message: error.message });
       this.store.put('rows', row.id, { ...row, status, reviewKind:'source', reason: error.message });
       if (['SOULSEEK_AUTH','SOULSEEK_CONNECTION','SOULSEEK_SETUP'].includes(error.code)) throw error;
       return false;
     }
+  }
+  async downloadRow(id) {
+    if(this.active)throw Error('Another sync is running. Wait or cancel it.');
+    const row=this.store.get('rows',id),link=row&&this.store.get('links',row.linkId);
+    if(!row?.present || !link)throw Error('Track not found');
+    this.active=link.id;this.controller=new AbortController();const signal=this.controller.signal;
+    const run={id:randomUUID(),linkId:link.id,started:Date.now(),preview:false,status:'running',ready:0,attention:0};this.store.put('runs',run.id,run);this.changed();
+    try{
+      const info=await this.bridge.call('info');if(info.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+      const ready=await this.processTrack(link,row,signal);run.ready=ready?1:0;run.attention=ready?0:1;
+      signal.throwIfAborted();
+      const target=await this.library(link.playlistId);if(target.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+      const before=target.tracks.map(t=>t.id),order=playlistOrder(this.rows(link.id).filter(r=>['ready','matched'].includes(r.status)).map(r=>r.localId),before);
+      if(order.changed){
+        if(new Set(order.ids).size!==order.ids.length)throw Error('Downloaded, but order needs review: target contains repeated entries.');
+        this.store.put('orders',run.id,{libraryId:link.libraryId,playlistId:link.playlistId,before,after:order.ids,created:Date.now()});
+        await this.bridge.call('reorder',{libraryId:link.libraryId,playlistId:link.playlistId,ids:order.ids,expectedIds:before});
+      }
+      run.status='complete';const current=this.store.get('links',link.id),attention=this.rows(link.id).filter(r=>!['ready','matched','ignored'].includes(r.status)).length;
+      this.store.put('links',link.id,{...current,extraCount:order.extraCount,status:attention?'attention':'synced',message:`${this.rows(link.id).length-attention} ready · ${attention} need attention`});
+    }catch(error){run.status=signal.aborted?'cancelled':'failed';run.message=error.message;this.store.put('links',link.id,{...this.store.get('links',link.id),status:run.status,message:error.message});}
+    finally{run.finished=Date.now();this.store.put('runs',run.id,run);this.active=null;this.controller=null;this.changed();this.schedule();}
+    return run;
   }
   async bulkMatchPlan(id,{includeAlternates=false}={}) {
     if(this.active)throw Error('Stop the current sync or wait for it to finish before reviewing bulk matches.');
@@ -303,19 +327,51 @@ export class Engine {
       const result = await this.bridge.call('track', { libraryId: link.libraryId, id: String(value.localId) });
       await access(result.path);
       this.store.put('bindings', this.bindingKey(link.libraryId, row.track.key), { localId: result.id });
-    } else if (['retry', 'source', 'file'].includes(value.action)) {
+    } else if (['retry', 'source', 'file','lower'].includes(value.action)) {
       const jobId = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
       const job = this.store.get('jobs', jobId) || { id: jobId, key: row.track.key, title: row.track.title, artist: row.track.artist, libraryId: link.libraryId, linkId: link.id, rowId: id, created: Date.now() };
-      if (value.action === 'source') { job.overrideUrl = mediaUrl(value.url); job.sourcePath = null; job.file = null; job.acquisition='manual'; }
+      job.linkId=link.id;job.rowId=id;
+      if (value.action === 'source') {
+        job.overrideUrl=mediaUrl(value.url);job.sourcePath=null;job.sourceReport=null;job.sourceUrl=null;job.file=null;job.acquisition='manual';job.qualityApproval=null;job.lowerOptions=[];job.analysed=false;job.needsAnalysis=false;job.localId=null;
+        // Keep the URL before inspecting it so errors/restarts cannot erase the user's choice.
+        this.store.put('jobs',jobId,{...job,status:'review',message:'Checking your selected source…'});
+        this.store.put('rows',id,{...row,status:'review',reviewKind:'source',reason:'Checking your selected source…'});
+        this.active=link.id;this.controller=new AbortController();this.changed();
+        try{
+          const result=await this.downloads.inspectSource(row.track,job.overrideUrl,this.controller.signal);job.lowerOptions=result.lowerOptions;
+          if(!result.normal){
+            const message='Lower-quality audio is available. Review its codec/bitrate and confirm before downloading.';
+            this.store.put('jobs',jobId,{...job,status:'review',message});this.store.put('rows',id,{...row,status:'review',reviewKind:'source',reason:message});
+            return {ok:true,pendingQuality:true,message};
+          }
+        }catch(error){this.store.put('jobs',jobId,{...job,status:'review',message:error.message});this.store.put('rows',id,{...row,status:'review',reviewKind:'source',reason:error.message});throw error;}
+        finally{this.active=null;this.controller=null;this.changed();this.schedule();}
+      }
+      if(value.action==='lower'){
+        const choice=job.lowerOptions?.find(o=>o.id===value.optionId);if(!choice)throw Error('This quality option is no longer available. Check the source again.');
+        job.qualityApproval={...choice,approvedAt:Date.now()};job.overrideUrl=choice.url;job.requestedFormatId=choice.formatId;job.sourcePath=choice.stagedPath || null;job.sourceReport=null;job.sourceUrl=choice.url;job.file=null;job.acquisition='manual';job.analysed=false;job.needsAnalysis=false;job.localId=null;
+      }
       if (value.action === 'file') {
         if (!isAbsolute(value.path || '')) throw new Error('Supply an absolute audio-file path.');
         if (!(await stat(value.path)).isFile()) throw new Error('Not an audio file');
-        job.sourcePath = value.path; job.file = null; job.overrideUrl=null; job.acquisition='manual';
+        job.sourcePath = value.path; job.file = null; job.overrideUrl=null; job.acquisition='manual';job.qualityApproval=null;job.lowerOptions=[];job.analysed=false;job.needsAnalysis=false;job.localId=null;job.sourceUrl=null;
+        this.store.put('jobs',jobId,{...job,status:'review',message:'Checking your selected file…'});
+        this.active=link.id;this.controller=new AbortController();this.changed();
+        try{
+          const report=await this.downloads.verify(value.path,row.track,this.controller.signal,false,{allowLower:true});
+          if(report.belowStandard){
+            const option=this.downloads.lowerOption(row.track,{localFile:true,title:row.track.title,duration:report.duration},{format_id:'local'},{stagedPath:value.path,report});
+            const message='Selected file is below your normal audio standard. Confirm its verified quality before importing.';
+            this.store.put('jobs',jobId,{...job,status:'review',lowerOptions:[option],message});this.store.put('rows',id,{...row,status:'review',reviewKind:'source',reason:message});return{ok:true,pendingQuality:true,message};
+          }
+        }catch(error){this.store.put('jobs',jobId,{...job,status:'review',message:error.message});this.store.put('rows',id,{...row,status:'review',reviewKind:'source',reason:error.message});throw error;}
+        finally{this.active=null;this.controller=null;this.changed();this.schedule();}
       }
       this.store.put('jobs', jobId, { ...job, status: 'queued', message: 'Ready to retry on next sync' });
       // Explicit source/file selection resolves identity uncertainty; quality gates still apply.
       this.store.delete('bindings', this.bindingKey(link.libraryId, row.track.key));
       this.store.put('rows', id, { ...row, status: 'missing', reason: 'Ready to retry' });
+      this.changed();return {ok:true,startDownload:['source','file','lower'].includes(value.action),message:value.action==='lower'?'Lower-quality exception approved for this song. Starting download.':['source','file'].includes(value.action)?'Source saved. Processing this song.':'Saved. Sync to process your choice.'};
     } else throw new Error('Unknown review action');
     if (['ignore', 'match'].includes(value.action)) this.store.put('rows', id, { ...row, status: value.action === 'ignore' ? 'ignored' : 'matched', localId: value.localId, reason: 'Saved your decision' });
     this.changed();

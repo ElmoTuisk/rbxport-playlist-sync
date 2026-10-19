@@ -45,3 +45,29 @@ test('real AAC is preserved as M4A only with explicit policy; low AAC and 256 MP
  const published=await run(ffmpeg,['-v','error','-i',result.file,'-map','0:a:0','-c:a','copy','-f','hash','-hash','sha256','-']);
  assert.equal(published,original,'AAC packets must be copied without lossy re-encoding');
 });
+
+test('per-song lower-quality approvals preserve MP3/AAC packets and use labelled FLAC for Opus playback', {skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-lower-audio-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const d=new Downloads(()=>({ffmpeg,ffprobe,musicFolder:dir})),signal=new AbortController().signal;
+ for(const [codec,encoder,extension,rate]of [['mp3','libmp3lame','mp3','128k'],['aac','aac','m4a','128k'],['opus','libopus','opus','96k']]){
+  const source=join(dir,`original.${extension}`),track={key:`lower:${codec}`,title:`Synthetic lower ${codec}`,artist:'Fixture',duration:10},url='https://soundcloud.com/fixture/'+codec;
+  await run(ffmpeg,['-v','error','-f','lavfi','-i','anoisesrc=color=white:duration=10:sample_rate=48000:seed=1[a];anoisesrc=color=white:duration=10:sample_rate=48000:seed=2[b];[a][b]amerge=inputs=2','-ac','2','-c:a',encoder,'-b:a',rate,source]);
+  await assert.rejects(d.verify(source,track),/Quality check/);
+  const approval={url,formatId:'fixture',codec,bitrate:codec==='opus'?0:128};
+  const result=await d.acquire(track,{id:`job-${codec}`,sourcePath:source,sourceUrl:url,qualityApproval:approval},()=>{},signal);
+  assert(result.quality.belowStandard);assert.equal(result.quality.sourceCodec,codec);assert.match(result.file,/LOWER/);
+  assert.equal(result.quality.codec,codec==='opus'?'flac':codec);
+  const hashArgs=codec==='opus'?['-c:a','pcm_s24le','-f','hash']:['-c:a','copy','-f','hash'];
+  const hash=path=>run(ffmpeg,['-v','error','-i',path,'-map','0:a:0',...hashArgs,'-hash','sha256','-']);
+  assert.equal(await hash(result.file),await hash(source),'No further lossy compression or MP3 upscaling');
+ }
+});
+
+test('a lower source than the approved bitrate requires a fresh confirmation before publishing', {skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-quality-change-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const source=join(dir,'low.mp3');await run(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=10','-ar','44100','-ac','2','-c:a','libmp3lame','-b:a','128k',source]);
+ const d=new Downloads(()=>({ffmpeg,ffprobe,musicFolder:dir})),updates=[],url='https://soundcloud.com/fixture/source';
+ await assert.rejects(d.acquire({key:'change',title:'Fixture',artist:'Fixture',duration:10},{id:'change',sourcePath:source,sourceUrl:url,qualityApproval:{url,formatId:'one',codec:'mp3',bitrate:192}},x=>updates.push(x),new AbortController().signal),e=>e.code==='LOWER_CONFIRM');
+ const offer=updates.find(x=>x.lowerOptions?.length).lowerOptions[0];assert.equal(offer.bitrate,128);assert.equal(offer.verified,true);assert.equal(offer.stagedPath,source);
+ assert(updates.some(x=>x.qualityApproval===null));
+});

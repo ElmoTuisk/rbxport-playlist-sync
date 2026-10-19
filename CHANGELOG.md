@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-10-19
+
+- Offer found lower-quality audio with a separate per-song Confirm & download step showing codec, bitrate and source. The global audio standard is unchanged.
+- Inspect selected source URLs/local files before acquisition; retain URLs, form drafts and useful messages after errors, refreshes and quality holds.
+- Pin approved source formats, recheck actual audio and require another confirmation if quality drops. Keep duration, decoding, stereo/sample-rate and protected-source checks.
+- Preserve lower-bitrate MP3/AAC packets. Decode approved Opus/Vorbis to FLAC for rbxport playback without further lossy compression, and label the original source quality in filenames, tags and the panel.
+- Download/import the selected song without retrying other missing tracks, then apply source order while preserving extra entries.
+
 ## 0.6.2 — 2026-10-19
 
 - Read SoundCloud metadata even when individual tracks have no playable formats, so DRM-protected entries no longer abort the entire source playlist. The metadata-only option never reaches download commands.

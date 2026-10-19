@@ -128,6 +128,40 @@ test('audio policy changes are explicit, persisted and reject unknown standards'
  assert.throws(()=>f.engine.saveSettings({quality:'upscale-anything'}),/supported audio standard/);assert.equal(f.engine.settings().quality,'club-aac-256');
 });
 
+test('a lower-quality URL waits for explicit per-song approval and targeted download leaves other missing songs alone',async t=>{
+ const f=await fixture(t);f.remote(['new','other']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0],url='https://soundcloud.com/fixture/lower';
+ const option={id:'a'.repeat(64),url,formatId:'mp3-128',codec:'mp3',bitrate:128,label:'MP3 · 128 kbps',duration:200};
+ f.downloads.inspectSource=async()=>({normal:false,lowerOptions:[option]});
+ const result=await f.engine.resolveRow(row.id,{action:'source',url});assert.equal(result.pendingQuality,true);assert.equal(f.acquisitions(),0);assert.equal(f.store.all('jobs')[0].overrideUrl,url);assert.equal(f.engine.rows(f.link.id)[0].status,'review');
+ await assert.rejects(f.engine.resolveRow(row.id,{action:'lower',optionId:'invalid'}),/no longer available/);assert.equal(f.store.all('jobs')[0].qualityApproval,null);
+ const accepted=await f.engine.resolveRow(row.id,{action:'lower',optionId:option.id});assert.equal(accepted.startDownload,true);
+ f.downloads.acquire=async(track,job)=>{assert.equal(job.qualityApproval.id,option.id);return{file:f.path,quality:{codec:'mp3',bitrate:128,belowStandard:true}};};
+ const run=await f.engine.downloadRow(row.id);assert.equal(run.status,'complete');assert.equal(run.ready,1);assert.equal(f.engine.rows(f.link.id)[1].status,'missing');assert.equal(f.store.all('jobs').length,1);
+ assert.equal(f.engine.rows(f.link.id)[0].audioQuality.belowStandard,true);assert.equal(f.engine.settings().quality,'strict-mp3-320');
+ f.downloads.inspectSource=async()=>({normal:false,lowerOptions:[]});await f.engine.resolveRow(row.id,{action:'source',url:'https://soundcloud.com/fixture/different'});assert.equal(f.store.all('jobs')[0].qualityApproval,null);
+ await assert.rejects(f.engine.resolveRow(row.id,{action:'lower',optionId:option.id}),/no longer available/);
+});
+
+test('source inspection errors retain the selected URL and useful failure message without downloading',async t=>{
+ const f=await fixture(t);f.remote(['new']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0],url='https://soundcloud.com/fixture/kept';
+ f.downloads.inspectSource=async()=>{throw Error('Selected source is unavailable. Try later.');};
+ await assert.rejects(f.engine.resolveRow(row.id,{action:'source',url}),/unavailable/);const job=f.store.all('jobs')[0];
+ assert.equal(job.overrideUrl,url);assert.equal(job.status,'review');assert.match(f.engine.rows(f.link.id)[0].reason,/unavailable/);assert.equal(f.engine.active,null);assert.equal(f.acquisitions(),0);
+});
+
+test('lower-quality local files also wait for their own verified confirmation',async t=>{
+ const f=await fixture(t);f.remote(['new']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0];
+ f.downloads.verify=async()=>({codec:'mp3',bitrate:128,duration:200,belowStandard:true});f.downloads.lowerOption=()=>({id:'b'.repeat(64),url:null,stagedPath:f.path,codec:'mp3',bitrate:128,formatId:'local',verified:true});
+ const result=await f.engine.resolveRow(row.id,{action:'file',path:f.path});assert(result.pendingQuality);assert.equal(f.acquisitions(),0);
+ const saved=f.store.all('jobs')[0];assert.equal(saved.sourcePath,f.path);assert.equal(saved.qualityApproval,null);
+ await f.engine.resolveRow(row.id,{action:'lower',optionId:saved.lowerOptions[0].id});assert.equal(f.store.all('jobs')[0].qualityApproval.codec,'mp3');
+});
+
+test('a normal-quality selected URL is queued for only that song and needs no quality exception',async t=>{
+ const f=await fixture(t);f.remote(['new']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0];f.downloads.inspectSource=async()=>({normal:true,lowerOptions:[]});
+ const result=await f.engine.resolveRow(row.id,{action:'source',url:'https://soundcloud.com/fixture/high'});assert(result.startDownload);assert.equal(f.store.all('jobs')[0].qualityApproval,null);assert.equal(f.acquisitions(),0);
+});
+
 async function bulkFixture(t){
  const f=await fixture(t);f.remote(['a','b','x']);await f.engine.sync(f.link.id,{preview:true});
  f.tracks.find(t=>t.id==='a').artist='Artist & Friend';f.tracks.find(t=>t.id==='b').duration=250;

@@ -1,5 +1,13 @@
 # Architecture and maintenance notes
 
+## Per-song quality approvals in 0.7.0
+
+Discovery records lower-quality alternatives only after candidate identity/duration checks. Options carry a server-generated ID binding the track key, source URL, format, codec, reported or verified bitrate and optional staged file. They do not change settings or start an unapproved lower-quality download. Explicit URL selection persists its value before metadata inspection; selected local files are probed/decoded first. Errors and quality holds retain the selection, and renderer drafts survive refreshes.
+
+The renderer separates Review from Confirm & download. The server looks up the option from the current job, saves its per-song approval and starts a targeted operation using the normal process/import pipeline. Other missing songs are not retried. Fresh URL/file selection revokes previous approval. Download format IDs are pinned; unavailable IDs never fall back to another format. A changed codec, bitrate below 90% of the reported approval or unexpectedly unknown bitrate holds a verified staged file for fresh confirmation. Unknown stream bitrate stays labelled unknown. Duration, full decoding, stereo/sample-rate and DRM checks remain mandatory.
+
+MP3/AAC use packet copying. rbxport's configured decoder does not support Opus/Vorbis directly, so approved sources of those types decode to FLAC at the original sample rate, with no additional lossy encoding. The saved source report, filename, comment tag and panel preserve the original lower-quality codec/bitrate; the resulting FLAC container is not evidence of a lossless original. A separate LOWER filename avoids replacing a standard-quality published file. Only the selected row is imported/analyzed; guarded source ordering and stable extras follow afterward.
+
 ## Optional Soulseek fallback
 
 `Soulseek` provisions the separately licensed Sockseek 3.0.6 Windows helper only on demand. Both its official archive and extracted executable are pinned by SHA-256 in dependencies.json. The tool and its license live below the private data directory, outside source and release ZIPs. Incoming connections are disabled by default. An explicit setting enables the helper's temporary TCP 49998 listener; the adapter does not share music or change firewall/router rules.

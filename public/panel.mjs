@@ -3,6 +3,7 @@ export function mountPanel(root, initial, send) {
   if (root.playlistSyncPanel) { root.playlistSyncPanel.update(initial); return root.playlistSyncPanel; }
   let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false;
   let bulkFor=null,bulkPlan=null,bulkAlternates=false,bulkNotice='';
+  const reviewDrafts={},reviewNotices={};let qualityPending=null;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
@@ -23,7 +24,7 @@ export function mountPanel(root, initial, send) {
           <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
           ${bulkFor===link.id?bulkForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
-          <details class="ps-more"><summary>All tracks · ${rows().length}</summary>${rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small>${esc(r.track.artist)} · ${esc(labels[r.status] || r.status)}</small></div></div>`).join('')}</details></div>` : ''}</section>`;
+          <details class="ps-more"><summary>All tracks · ${rows().length}</summary>${rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small>${esc(r.track.artist)} · ${esc(labels[r.status] || r.status)}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}`:''}</small></div></div>`).join('')}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
       ${mode === 'link' ? linkForm() : ['settings','soulseek'].includes(mode) ? settingsForm() : ''}
       <div class="ps-foot">${button('link', '+ Link playlist', '', 'class="ps-text"')}<span>${model.settings?.quality==='club-aac-256'?'MP3 320 · AAC 256':'320 kbps MP3'}</span>${model.active ? button('cancel', 'Cancel') : ''}</div>`;
@@ -44,9 +45,18 @@ export function mountPanel(root, initial, send) {
   function reviewForm(row) {
     if (!row) return '';
     const match = row.reviewKind === 'match' && row.candidates?.length;
-    const attempts=(model.jobs || []).find(j=>j.rowId===row.id)?.attempts || [];
+    const job=(model.jobs || []).find(j=>j.rowId===row.id),draft=reviewDrafts[row.id] || {},action=draft.action || (job?.overrideUrl?'source':match?'match':'file');
+    const attempts=job?.attempts || [];
     const sourceDetails=attempts.length ? '<details class="ps-more"><summary>Source attempts</summary>'+attempts.filter(a=>a.status!=='searching').slice(-12).map(a=>'<p class="ps-muted">'+esc(a.source)+': '+esc(a.message)+'</p>').join('')+'</details>' : '';
-    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${sourceDetails}<label>Resolve<select name="action" id="ps-resolution"><option value="file">Use an audio file</option><option value="match" ${match ? 'selected' : ''}>Match existing track</option><option value="source">Use a source URL</option><option value="retry">Retry</option><option value="ignore">Ignore</option></select></label><div id="ps-resolution-fields">${match ? matchFields(row) : '<label>Audio file path<input name="path" placeholder="C:\\Music\\original.flac" required></label>'}</div><div class="ps-form-actions">${button('dismiss-review', 'Cancel')}<button>Save</button></div></form>`;
+    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${reviewNotices[row.id]?`<p role="status" class="ps-muted">${esc(reviewNotices[row.id])}</p>`:''}${qualityForm(row,job)}${sourceDetails}<label>Resolve<select name="action" id="ps-resolution">${[['file','Use an audio file'],['match','Match existing track'],['source','Use a source URL'],['retry','Retry'],['ignore','Ignore']].map(([value,label])=>`<option value="${value}" ${action===value?'selected':''}>${label}</option>`).join('')}</select></label><div id="ps-resolution-fields">${resolutionFields(action,row,draft,job)}</div><div class="ps-form-actions">${button('dismiss-review', 'Close')}<button ${busy||model.active?'disabled':''}>${action==='source'?'Check source & download':'Save'}</button></div></form>`;
+  }
+  function resolutionFields(action,row,draft={},job) {
+    return action==='file'?`<label>Audio file path<input name="path" value="${esc(draft.path ?? (job?.acquisition==='manual'?job.sourcePath:'') ?? '')}" required></label>`:action==='source'?`<label>Source URL<input name="url" type="url" value="${esc(draft.url ?? job?.overrideUrl ?? '')}" required></label>`:action==='match'?matchFields(row):'';
+  }
+  function qualityForm(row,job) {
+    if(!job?.lowerOptions?.length || job.status==='ready')return '';
+    const options=[...job.lowerOptions].sort((a,b)=>Number(b.verified)-Number(a.verified)),chosen=qualityPending?.rowId===row.id?options.find(o=>o.id===qualityPending.optionId):null;
+    return `<div class="ps-form" data-quality-review><strong>Lower-quality audio available</strong>${chosen?`<p class="ps-muted">Download ${esc(chosen.label)} for this song?</p><p class="ps-muted">${esc(chosen.title)} · ${chosen.duration?Math.round(chosen.duration)+'s':'length not reported'}</p><small>${esc(chosen.url || 'Selected local audio file')}</small><p class="ps-muted">This exception is for this song only. ${['opus','vorbis'].includes(chosen.codec)?'Use FLAC for playback, labelled with the original source quality.':'Keep the original audio encoding.'} Your normal audio standard stays unchanged. Length and file checks still apply.</p><div class="ps-form-actions">${button('lower-cancel','Back')}${button('lower-confirm','Confirm & download',row.id,busy||model.active?'disabled':'')}</div>`:`<label>Available file<select data-lower-choice>${options.map(o=>`<option value="${esc(o.id)}">${esc(o.label)} · ${esc(o.title)}</option>`).join('')}</select></label>${button('lower-review','Review lower-quality file',row.id,busy||model.active?'disabled':'')}`}</div>`;
   }
   function matchFields(row) {
     const candidates = row?.candidates || [];
@@ -90,6 +100,15 @@ export function mountPanel(root, initial, send) {
       });
     }
     else if (action === 'dismiss-review') { reviewing = null; render(true); }
+    else if(action==='lower-review'){
+      const job=(model.jobs || []).find(j=>j.rowId===id),optionId=root.querySelector('[data-lower-choice]')?.value || job?.lowerOptions?.[0]?.id;
+      if(optionId){qualityPending={rowId:id,optionId};render(true);requestAnimationFrame(()=>root.querySelector('[data-quality-review]')?.scrollIntoView({block:'nearest'}));}
+    }
+    else if(action==='lower-cancel'){qualityPending=null;render(true);}
+    else if(action==='lower-confirm' && qualityPending?.rowId===id){
+      const result=await act('resolve',{id,action:'lower',optionId:qualityPending.optionId});
+      if(!error){reviewNotices[id]=result?.message || 'Approved for this song. Download starting.';qualityPending=null;render(true);}
+    }
     else await act(action, { id });
   });
   root.addEventListener('change', async event => {
@@ -97,15 +116,25 @@ export function mountPanel(root, initial, send) {
     if (event.target.dataset.automatic) await act('automatic', { id: event.target.dataset.automatic, automatic: event.target.checked });
     if (event.target.id === 'ps-resolution') {
       const action = event.target.value;
-      root.querySelector('#ps-resolution-fields').innerHTML = action === 'file' ? '<label>Audio file path<input name="path" required></label>' : action === 'source' ? '<label>Source URL<input name="url" type="url" required></label>' : action === 'match' ? matchFields(rows().find(r => r.id === reviewing)) : '';
+      reviewDrafts[reviewing]={...reviewDrafts[reviewing],action};qualityPending=null;
+      const row=rows().find(r=>r.id===reviewing),job=(model.jobs || []).find(j=>j.rowId===reviewing);
+      root.querySelector('#ps-resolution-fields').innerHTML=resolutionFields(action,row,reviewDrafts[reviewing],job);
     }
+  });
+  root.addEventListener('input',event=>{
+    const form=event.target.closest?.('[data-form="resolve"]');if(!form || !event.target.name)return;
+    reviewDrafts[form.dataset.id]={...reviewDrafts[form.dataset.id],[event.target.name]:event.target.value};qualityPending=null;
   });
   root.addEventListener('submit', async event => {
     event.preventDefault(); const form = event.target; const value = Object.fromEntries(new FormData(form));
     if (form.dataset.form === 'settings') value.autoAnalyse = form.elements.autoAnalyse.checked;
     if (form.dataset.form === 'soulseek') { value.enabled = form.elements.enabled.checked; value.allowIncoming=form.elements.allowIncoming.checked; }
-    if (form.dataset.form === 'resolve') value.id = form.dataset.id;
-    await act(form.dataset.form, value);
+    if (form.dataset.form === 'resolve') {value.id = form.dataset.id;reviewDrafts[value.id]={...value};}
+    const result=await act(form.dataset.form, value);
+    if(form.dataset.form==='resolve'){
+      if(!error){reviewNotices[value.id]=result?.message || 'Saved your choice.';render(true);}
+      return;
+    }
     if (!error) { mode = ['spotify','soulseek'].includes(form.dataset.form) ? 'settings' : ''; reviewing = null; render(true); }
   });
   const controller = { update(value) {

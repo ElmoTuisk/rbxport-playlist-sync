@@ -3,3 +3,5 @@
 /* Reflow on expansion; keep all controls reachable in short windows. */
 #playlist-sync-popover{box-sizing:border-box;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#50545a transparent;scroll-padding-top:42px;scroll-padding-bottom:42px}#playlist-sync-popover .ps-head{position:sticky;top:0;z-index:2;background:#1c1d1f;padding:4px 0 8px}#playlist-sync-popover .ps-foot{position:sticky;bottom:0;z-index:2;background:#1c1d1f;padding-bottom:5px}
 #playlist-sync-root .ps-tools{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 12px}#playlist-sync-root .ps-tools button{padding:4px 7px;font-size:10px}
+
+#playlist-sync-root [data-quality-review] small{display:block;overflow-wrap:anywhere;color:#969ba1;font-size:10px}
