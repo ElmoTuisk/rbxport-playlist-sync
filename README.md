@@ -4,14 +4,14 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 Optional **Soulseek batch fallback** searches for missing recordings while keeping the 320 kbps MP3/lossless requirement.
 
-**Windows x64 · Experimental v0.4.0 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.4.1 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.4.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.4.1-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -66,7 +66,7 @@ Only download audio you are entitled to acquire. Format checks cannot prove that
 
 Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in, connection or setup failure stops the batch. Peer availability and queues affect completion time, and tracks without the required metadata may be filtered out. Do not expect every track to be available.
 
-Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. The add-on enables no incoming Soulseek listener and does not share your music folders. Live account downloads still need verification with your own account; automated checks and a real helper test used synthetic audio only.
+Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. The add-on enables no incoming Soulseek listener and does not share your music folders. Live sign-in was verified with a search-only check. Peer downloads still need verification; the real helper audio tests used synthetic files. If v0.4.0 reported a connection failure immediately, update to v0.4.1: fractional track lengths could reject a search before sign-in.
 
 ## Stop or update
 

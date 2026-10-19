@@ -34,6 +34,8 @@ test('Soulseek CSV preserves punctuation and quotes as one track; command enforc
   for(const flag of ['--strict-title','--strict-artist','--strict-conditions','--no-listen'])assert(args.includes(flag));
   assert.equal(args[args.indexOf('--min-bitrate')+1],'320');
   assert.equal(args[args.indexOf('--yt-dlp')+1],'false');
+  const fractional = soulseekArgs('private.conf','one.csv','stage',{...track,duration:323.49});
+  assert.equal(fractional[fractional.indexOf('--length-tol')+1],'7');
   assert(!args.includes('--pass'));
   assert.throws(()=>trackCsv({...track,duration:0}));
 });
@@ -74,4 +76,11 @@ test('Soulseek failures redact tool output, clean credentials and reject cancell
 test('a normal no-result exit remains a per-track review so the batch can continue', async t => {
   const f = await fixture(t,{notFound:true});
   await assert.rejects(f.soulseek.acquire(track,job,()=>{},new AbortController().signal),error=>error.code==='QUALITY_REVIEW'&&/remains in review/.test(error.message));
+});
+
+test('helper option errors are setup failures rather than misleading account errors', async t => {
+  const f = await fixture(t);
+  f.soulseek.runner = async () => { throw Error("Tool exited 2: [error] [cli] Input error: Option '--length-tol' requires an integer parameter, got '6.4698'"); };
+  await assert.rejects(f.soulseek.acquire(track,job,()=>{},new AbortController().signal),error=>error.code==='SOULSEEK_SETUP'&&/not a password error/.test(error.message));
+  assert(!(await readdir(join(f.dir,'soulseek'))).some(n=>n.startsWith('auth-')));
 });

@@ -19,7 +19,8 @@ export function soulseekArgs(config, input, output, track) {
   return ['--config',config,'--input',input,'--input-type','csv','--song','--output-dir',output,
     '--name-format','{slsk-filename}','--format','mp3,flac,wav,aiff,alac','--min-bitrate','320',
     '--min-samplerate','44100','--strict-conditions','--strict-title','--strict-artist',
-    '--length-tol',String(Math.max(3,Math.min(8,track.duration * .02))),
+    // Sockseek accepts whole seconds; the exact tolerance is enforced again on actual audio.
+    '--length-tol',String(Math.ceil(Math.max(3,Math.min(8,track.duration * .02)))),
     '--concurrent-jobs','1','--concurrent-searches','1','--max-retries','3','--search-timeout','10000',
     '--searches-per-time','1','--searches-renew-time','12','--no-listen','--yt-dlp','false',
     '--no-write-index','--progress-json'];
@@ -142,6 +143,8 @@ export class Soulseek {
       return {sourcePath,sourceReport,sourceUrl:`soulseek:job/${job.id}`};
     } catch (error) {
       if (signal?.aborted) throw Error('Cancelled');
+      if (/Input error:|Option .{1,80} requires|Unknown (option|argument)|Unrecognized option/i.test(error.message))
+        throw Object.assign(Error('Soulseek helper rejected its search options. Update the add-on before retrying; this is not a password error.'),{code:'SOULSEEK_SETUP'});
       authenticationFailed ||= /invalid.{0,30}(password|credential|username)|login.{0,20}(failed|rejected)|password.{0,20}(incorrect|invalid)/i.test(error.message + terminalFailure);
       const trackFailure = Boolean(terminalFailure && !/connection|login|auth|network/i.test(terminalFailure));
       const known = !authenticationFailed && (trackFailure || /^(Soulseek (found|file)|Quality check failed)/.test(error.message));

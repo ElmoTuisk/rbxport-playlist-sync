@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — 2026-10-19
+
+- Fix fractional source durations causing Soulseek to reject its integer-only length tolerance before signing in.
+- Report rejected helper options as setup errors instead of misleading connection/password failures.
+- Verify a live account sign-in and add regression coverage; audio quality and exact duration checks remain unchanged.
+
 ## 0.4.0 — 2026-10-19
 
 - Match equivalent comma/slash artist credits so existing files are not incorrectly marked unresolved.
