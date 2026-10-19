@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-37 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+48 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -24,6 +24,8 @@ The repaired running service was also checked: visiting the bare callback addres
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
 
 ## Minimal native panel
+
+Version 0.4.0 adds cached local-file rechecks and an optional Soulseek batch queue. The real pinned Sockseek 3.0.6 Windows executable was tested offline using its mock-file mode and a generated stereo, 44.1 kHz, 320 kbps MP3. The actual helper selected the fixture file; the add-on checked identity, fully decoded the source and verified the published 320 kbps MP3. A second real-helper test confirmed that its nonzero no-result exit becomes a per-track review rather than stopping the batch. No Soulseek account or peer-network transfer was used. Unit tests cover CSV quoting, required quality flags, public credential status, temporary config cleanup, rejected identity/audio, cancellation, held failures, explicit retries and batch-stopping account errors. A live cached collection recheck confirmed that equivalent artist separators now reuse existing files without downloading or modifying the host playlist. Live Soulseek login/download behavior awaits user account verification.
 
 Version 0.3.3 opens Resolve immediately below the selected missing song, scrolls the form into view and focuses its action selector. Live read-only UI checks passed on the first, middle and last unresolved rows in playlists with four and 85 unresolved tracks. Each form was adjacent to its own row, fully visible and within the app viewport. No resolution was saved and no music or playlist entries were changed by those checks. Switching playlists with a focused resolution field now forces the newly selected details to render. Two automated renderer/controller regression tests cover inline form placement in an 85-row fixture and focused-field playlist selection.
 

@@ -11,6 +11,7 @@ import { Downloads } from './downloads.mjs';
 import { Spotify, Vault, Providers } from './providers.mjs';
 import { firstRunSettings } from './defaults.mjs';
 import { oauthPage } from './oauth-page.mjs';
+import { Soulseek } from './soulseek.mjs';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
 export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null } = {}) {
@@ -24,6 +25,8 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   const bridge = new Bridge(changed);
   let engine;
   const downloads = new Downloads(() => engine.settings());
+  const soulseek = new Soulseek(dataDir,new Vault(dataDir,'soulseek'),downloads);
+  await soulseek.initialize(); downloads.soulseek = soulseek;
   const spotify = spotifyClient || new Spotify(new Vault(dataDir), `http://127.0.0.1:${port}/oauth/spotify`, new Vault(dataDir, 'spotify-auth'));
   await spotify.initialize();
   const providers = new Providers(spotify, downloads);
@@ -34,7 +37,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     links: store.all('links'), jobs: store.all('jobs').slice(-150).reverse(), runs: store.all('runs').slice(-50).reverse(), settings: engine.settings(),
     counts: store.all('rows').filter(r => r.present).reduce((out, row) => { out[row.status] = (out[row.status] || 0) + 1; return out; }, {}) });
   const panelModel = () => ({ revision, demo, connected: bridge.connected, active: engine.active, selected, selectionRevision,
-    expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(),
+    expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(),
     links: store.all('links').filter(l => demo || !hostInfo || l.libraryId === hostInfo.libraryId).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
     rows: Object.fromEntries(selected ? [[selected, engine.rows(selected)]] : []),
     jobs: store.all('jobs').filter(j => j.linkId === engine.active), playlists: hostInfo?.playlists || [] });
@@ -47,11 +50,11 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       return await bridge.updateHost({ ...panelModel(), open }, css);
     } finally { hostBusy = false; }
   }
-  function startSync(id, preview = false) {
+  function startSync(id, preview = false, cached = false, useSoulseek = false) {
     if (engine.active) throw Error('Another sync is running');
     const link = store.get('links', id); if (!link) throw Error('Unknown playlist link');
-    if (link.retryAt > Date.now()) throw Error('Provider rate limit: try after ' + new Date(link.retryAt).toLocaleString());
-    runningSync = engine.sync(id, { preview });
+    if (!cached && link.retryAt > Date.now()) throw Error('Provider rate limit: try after ' + new Date(link.retryAt).toLocaleString());
+    runningSync = engine.sync(id, { preview, cached, soulseek:useSoulseek });
     void runningSync.catch(() => {}).finally(() => { runningSync = null; });
   }
   async function action(name, args = {}) {
@@ -62,12 +65,15 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       case 'options': hostInfo = demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'); changed(); break;
       case 'connect': await bridge.connect(); await syncHost(); changed(); break;
       case 'sync': startSync(args.id); break;
+      case 'recheck': startSync(args.id, true, true); break;
+      case 'fallback': if (!soulseek.enabled) throw Error('Connect Soulseek in Settings first.'); startSync(args.id,false,true,true); break;
       case 'cancel': engine.cancel(); break;
       case 'automatic': engine.updateLink(args.id, { automatic: args.automatic === true }); break;
       case 'link': { const link = await engine.addLink(args); selected = link.id; selectionRevision++; hostInfo = await bridge.call('info'); startSync(link.id, true); break; }
       case 'resolve': await engine.resolveRow(args.id, args); break;
       case 'settings': engine.saveSettings(args); break;
       case 'spotify': { const url = await spotify.authorize(args.clientId); changed(); return { url }; }
+      case 'soulseek': if (engine.active) throw Error('Wait for the current sync before changing Soulseek settings.'); await soulseek.configure(args); changed(); return soulseek.publicStatus();
       default: throw Error('Unsupported action');
     }
     return { ok: true };

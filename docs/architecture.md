@@ -1,5 +1,15 @@
 # Architecture and maintenance notes
 
+## Optional Soulseek fallback
+
+`Soulseek` provisions the separately licensed Sockseek 3.0.6 Windows helper only on demand. Both its official archive and extracted executable are pinned by SHA-256 in dependencies.json. The tool and its license live below the private data directory, outside source and release ZIPs. No incoming listener or music sharing is enabled by the adapter.
+
+The engine checks local collection matches first. A cached recheck needs no provider API call and performs no host writes. An enabled fallback can acquire a recording when the web source fails or a local candidate cannot be approved. Multiple confident local copies still require a choice. Explicit source/file overrides remain authoritative. The batch retry uses the saved source list and explicitly retries held Soulseek failures; ordinary scheduled sync does not repeatedly hammer those failures.
+
+Each unresolved recording uses a quoted single-row CSV with artist, title and seconds. The helper has strict format, bitrate, sample-rate, title, artist and length conditions and no yt-dlp fallback. Searches are paced across child processes. The adapter independently checks downloaded tags/filename, mix, duration, codec and full audio decoding before the existing MP3 publishing/import pipeline. It never imports helper output merely because a search succeeded. Authentication, connection and tool setup errors stop the batch; individual unavailable or rejected files stay in review.
+
+Soulseek credentials use a separate Windows DPAPI vault. API models expose only username/configured/enabled status. A temporary configuration file supplies credentials to the child without command-line passwords; its contents are removed in a finally block, and interrupted-run authentication files are cleaned at initialization. Download progress accepts only numeric progress events, never raw logs, peer names or secrets. The temporary file is plaintext while in use; the data directory must remain private.
+
 The add-on is a dependency-free Node.js 24 application with a small popover displayed inside rbxport. A new entry sits directly below Tag List on the left. The Windows installer provisions a private runtime and audio tools; users do not need Node on PATH. No host source patch is required. Inspect rbxport compatibility before upgrading beyond the tested release.
 
 ## Desktop lifecycle and installation

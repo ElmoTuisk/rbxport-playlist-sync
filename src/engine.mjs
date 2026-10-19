@@ -63,9 +63,12 @@ export class Engine {
   rowKey(linkId, key) { return `${linkId}|${key}`; }
   bindingKey(libraryId, key) { return `${libraryId}|${key}`; }
   rows(linkId) { return this.store.all('rows').filter(r => r.linkId === linkId && r.present).sort((a, b) => (a.position || 0) - (b.position || 0)); }
-  async preview(id, signal) {
+  async preview(id, signal, { cached = false } = {}) {
     const link = this.store.get('links', id); if (!link) throw new Error('Playlist link not found');
-    const source = await this.providers.playlist({ provider: link.provider, id: link.sourceId, url: link.url }, signal);
+    const saved = cached ? this.rows(id) : null;
+    if (cached && !saved.length) throw new Error('Check the source playlist once before rechecking local files.');
+    const source = cached ? { name: link.sourceName, revision: link.snapshot, tracks: saved.map(r => r.track) }
+      : await this.providers.playlist({ provider: link.provider, id: link.sourceId, url: link.url }, signal);
     if (!Array.isArray(source.tracks)) throw new Error('Incomplete source snapshot');
     const library = await this.library();
     if (library.libraryId !== link.libraryId) throw new Error('Wrong rbxport library. Open the library used when linking this playlist.');
@@ -83,7 +86,7 @@ export class Engine {
       const job = this.store.get('jobs', jobId);
       if (job?.status === 'queued' && (job.overrideUrl || job.sourcePath) && match.status === 'review') match = { status: 'missing', reason: 'Using your selected source; quality checks still apply', candidates: match.candidates };
       const previous = this.store.get('rows', this.rowKey(id, track.key));
-      rows.push({ ...previous, localId: undefined, id: this.rowKey(id, track.key), linkId: id, position: rows.length, track, present: true, ...match });
+      rows.push({ ...previous, localId: undefined, reviewKind: match.status === 'review' ? 'match' : undefined, id: this.rowKey(id, track.key), linkId: id, position: rows.length, track, present: true, ...match });
     }
     this.store.transaction(() => {
       for (const old of this.rows(id)) if (!seen.has(old.track.key)) this.store.put('rows', old.id, { ...old, present: false });
@@ -93,15 +96,16 @@ export class Engine {
     });
     this.changed(); return rows;
   }
-  async sync(id, { preview = false } = {}) {
+  async sync(id, { preview = false, cached = false, soulseek = false } = {}) {
     if (this.active) throw new Error('Another sync is running. Wait or cancel it.');
+    if (soulseek && !this.downloads.soulseek?.enabled) throw new Error('Connect and enable Soulseek in Settings first.');
     const link = this.store.get('links', id); if (!link) throw new Error('Playlist link not found');
-    if (link.retryAt > Date.now()) throw new Error('Provider is paused by its rate/quota limit. Try after the indicated time.');
+    if (!cached && link.retryAt > Date.now()) throw new Error('Provider is paused by its rate/quota limit. Try after the indicated time.');
     this.active = id; this.controller = new AbortController(); const signal = this.controller.signal;
     const run = { id: randomUUID(), linkId: id, started: Date.now(), preview, status: 'running', added: 0, ready: 0, attention: 0 };
     this.store.put('runs', run.id, run); this.changed();
     try {
-      const rows = await this.preview(id, signal);
+      const rows = await this.preview(id, signal, { cached });
       if (!preview) for (const row of rows) {
         signal.throwIfAborted();
         if (row.status === 'matched') {
@@ -113,8 +117,8 @@ export class Engine {
           await this.bridge.call('add', { libraryId: link.libraryId, playlistId: link.playlistId, ids: [row.localId] });
           this.store.put('bindings', this.bindingKey(link.libraryId, row.track.key), { ...binding, localId: row.localId });
           this.store.put('rows', row.id, { ...row, status: 'ready', reason: 'Existing track linked' }); run.ready++;
-        } else if (row.status === 'missing') {
-          const result = await this.processTrack(link, row, signal); result ? run.ready++ : run.attention++;
+        } else if (row.status === 'missing' || (row.status === 'review' && this.downloads.soulseek?.enabled && !row.candidates?.some(c => c.certain))) {
+          const result = await this.processTrack(link, row, signal, { preferSoulseek: soulseek || row.status === 'review', retrySoulseek: soulseek }); result ? run.ready++ : run.attention++;
         } else if (row.status !== 'ignored') run.attention++;
         this.changed();
       }
@@ -131,7 +135,9 @@ export class Engine {
       }
       run.status = 'complete';
       const current = this.store.get('links', id);
-      this.store.put('links', id, { ...current, extraCount: run.extraCount ?? current.extraCount, lastSync: preview ? current.lastSync : Date.now(), status: preview ? 'preview' : run.attention ? 'attention' : 'synced', message: preview ? 'Preview ready' : `${run.ready} ready · ${run.attention} need attention`, retryAt: null });
+      const found = rows.filter(r => ['ready','matched'].includes(r.status)).length;
+      const attention = rows.filter(r => !['ready','matched','ignored'].includes(r.status)).length;
+      this.store.put('links', id, { ...current, extraCount: run.extraCount ?? current.extraCount, lastSync: preview ? current.lastSync : Date.now(), status: preview ? 'preview' : run.attention ? 'attention' : 'synced', message: preview ? `${found} in collection · ${attention} need attention` : `${run.ready} ready · ${run.attention} need attention`, retryAt: null });
     } catch (error) {
       run.status = signal.aborted ? 'cancelled' : 'failed'; run.message = error.message;
       const current = this.store.get('links', id);
@@ -142,17 +148,38 @@ export class Engine {
     }
     return run;
   }
-  async processTrack(link, row, signal) {
+  async processTrack(link, row, signal, { preferSoulseek = false, retrySoulseek = false } = {}) {
     const id = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
     let job = this.store.get('jobs', id) || { id, key: row.track.key, title: row.track.title, artist: row.track.artist, libraryId: link.libraryId, created: Date.now(), status: 'queued' };
     job = { ...job, linkId: link.id, rowId: row.id };
+    const fallback = this.downloads.soulseek?.enabled;
+    const explicitSource = Boolean(job.overrideUrl || (job.sourcePath && job.acquisition !== 'soulseek'));
+    if (fallback && job.acquisition === 'soulseek' && !explicitSource) preferSoulseek = true;
     if (job.status === 'review' || job.status === 'cancelled') {
-      this.store.put('rows', row.id, { ...row, status: 'review', reason: job.message }); return false;
+      if (fallback && !explicitSource && (job.status !== 'cancelled' || retrySoulseek) && (retrySoulseek || job.acquisition !== 'soulseek')) preferSoulseek = true;
+      else { this.store.put('rows', row.id, { ...row, status: 'review', reviewKind:'source', reason: job.message }); return false; }
+      if (retrySoulseek && job.acquisition === 'soulseek' && !job.file) job = {...job,sourcePath:null,sourceReport:null};
     }
     const update = fields => { job = { ...job, ...fields, updated: Date.now() }; this.store.put('jobs', id, job); this.changed(); };
     try {
       if (!this.settings().musicFolder) throw new Error('Choose a music download folder in Settings.');
-      if (!job.file) update(await this.downloads.acquire(row.track, job, update, signal));
+      const acquireFallback = async () => {
+        update({acquisition:'soulseek',status:'searching',progress:'',message:'Trying Soulseek fallback'});
+        if (!job.sourcePath) update(await this.downloads.soulseek.acquire(row.track,job,update,signal));
+        return this.downloads.acquire(row.track,job,update,signal);
+      };
+      if (!job.file) {
+        if (preferSoulseek && fallback && !explicitSource) update(await acquireFallback());
+        else {
+          try { update(await this.downloads.acquire(row.track,job,update,signal)); }
+          catch (error) {
+            if (!fallback || explicitSource || signal.aborted) throw error;
+            // Do not reuse a rejected web source as if it came from Soulseek.
+            update({sourcePath:null,sourceReport:null});
+            update(await acquireFallback());
+          }
+        }
+      }
       else await this.downloads.verify(job.file, row.track, signal, true);
       signal.throwIfAborted();
       update({ status: 'importing', message: 'Importing verified file into rbxport' });
@@ -172,7 +199,9 @@ export class Engine {
     } catch (error) {
       const status = signal.aborted ? 'cancelled' : error.code === 'QUALITY_REVIEW' || /Quality check/.test(error.message) ? 'review' : 'failed';
       update({ status, message: error.message });
-      this.store.put('rows', row.id, { ...row, status, reason: error.message }); return false;
+      this.store.put('rows', row.id, { ...row, status, reviewKind:'source', reason: error.message });
+      if (['SOULSEEK_AUTH','SOULSEEK_CONNECTION','SOULSEEK_SETUP'].includes(error.code)) throw error;
+      return false;
     }
   }
   async resolveRow(id, value) {

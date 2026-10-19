@@ -2,14 +2,16 @@
 
 A small add-on that links your Spotify and SoundCloud playlists to rbxport. It reuses songs already in your collection and checks missing downloads before importing them.
 
-**Windows x64 · Experimental v0.3.3 · Tested with rbxport 1.9.0**
+Optional **Soulseek batch fallback** searches for missing recordings while keeping the 320 kbps MP3/lossless requirement.
+
+**Windows x64 · Experimental v0.4.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.3.3-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.4.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -48,11 +50,23 @@ Start sign-in with **Connect**; opening the redirect address directly does not s
 
 ## Missing songs / “Check source”
 
+**Recheck files** scans your existing collection using the saved source list, without downloads or playlist writes. Equivalent comma/slash artist credits now match automatically. **Check existing match** means a local candidate needs confirmation; Resolve offers the suggested tracks in a dropdown. Different mixes and lengths are kept separate.
+
 Click the playlist name, then **Resolve** beside a song to see the exact reason. The form opens directly below that song. You can supply an audio file, match an existing collection track by its rbxport track ID, provide another source URL, retry, or ignore it. Save your choice, then Sync again to process it.
 
 New downloads require a **320 kbps MP3 or lossless source** and produce **320 kbps MP3**. Track identity, length and full audio decoding are checked. Most YouTube audio is AAC/Opus and will fail this strict source requirement; re-encoding it would not restore quality. Manual URLs must pass the same checks. Existing collection files are reused without a new quality certification.
 
 Only download audio you are entitled to acquire. Format checks cannot prove that a file was never upscaled previously.
+
+## Soulseek fallback
+
+1. Open the **gear → Soulseek fallback**. Enter your existing Soulseek username and password, enable **Use as fallback on Sync**, and click **Save account**. If another Soulseek client is running, use a separate account to avoid disconnecting it.
+2. Expand a linked playlist and click **Find missing with Soulseek**. It rechecks local matches, then queues only unresolved recordings using the last checked source list. Ordinary Sync can also fall back to Soulseek when enabled.
+3. The add-on downloads and verifies the optional [Sockseek helper](https://github.com/fiso64/sockseek) automatically on first use. It searches for MP3 at 320 kbps or lossless files, requires matching identity and duration, and verifies actual audio before import. No separate app window is needed.
+
+Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in, connection or setup failure stops the batch. Peer availability and queues affect completion time, and tracks without the required metadata may be filtered out. Do not expect every track to be available.
+
+Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. The add-on enables no incoming Soulseek listener and does not share your music folders. Live account downloads still need verification with your own account; automated checks and a real helper test used synthetic audio only.
 
 ## Stop or update
 

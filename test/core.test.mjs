@@ -34,6 +34,15 @@ test('duration, version, missing files and saved decisions take precedence', () 
 test('artist prefixes, collaboration separators and download labels normalize', () => {
   assert.equal(matchTrack({ ...source, title: 'Artist - A Track [FREE DL]', artist: 'Artist，Friend' }, [local]).status, 'matched');
 });
+
+test('equivalent comma and slash artist credits reuse a local file, retaining version and duration checks', () => {
+  const track = { ...source, artist: 'Fixture Artist, Collaborator', title: 'Evening Session - Extended Main Mix', duration: 418.5 };
+  const file = { ...track, id:'existing', artist:'Fixture Artist/Collaborator', duration:418 };
+  assert.equal(matchTrack(track, [file]).localId, 'existing');
+  assert.notEqual(matchTrack(track, [{...file, title:'Evening Session - Radio Edit'}]).status, 'matched');
+  assert.notEqual(matchTrack(track, [{...file, duration:300}]).status, 'matched');
+  assert.notEqual(matchTrack({...source, artist:'AC/DC'}, [{...local, artist:'AC'}]).status, 'matched');
+});
 test('video candidates must match identity, version and length', () => {
   assert.equal(candidateCheck(source, { title: 'Artist - A Track', duration: 200 }).ok, true);
   for (const candidate of [{ title: 'Artist - A Track', duration: 240 }, { title: 'Artist - A Track (preview)', duration: 200 }, { title: 'Artist - A Track', duration: 200, is_live: true }, { title: 'Artist - A Track VIP', duration: 200 }])

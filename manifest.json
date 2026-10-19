@@ -1,7 +1,7 @@
 {
   "id": "playlist-sync",
   "name": "Playlist Sync",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "bridgeVersion": 1,
   "runtime": "Node.js 24",
   "entry": "src/server.mjs",

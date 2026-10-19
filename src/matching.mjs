@@ -40,7 +40,10 @@ export function scoreMatch(source, local) {
   const duration = durationCheck(source.duration, local.duration);
   const sameVersion = version(source.title) === version(`${local.title} ${local.mixName || ''}`);
   const sameIsrc = Boolean(source.isrc && local.isrc && source.isrc === local.isrc);
-  const exact = sourceTitle === localTitle && primaryArtist(source.artist) === primaryArtist(local.artist);
+  // Providers use commas while DJ libraries often use slashes for the same credits.
+  // Compare the complete normalized credit too; do not guess artist spelling changes.
+  const sameArtist = primaryArtist(source.artist) === primaryArtist(local.artist) || normalize(source.artist) === normalize(local.artist);
+  const exact = sourceTitle === localTitle && sameArtist;
   const score = title * 0.5 + artist * 0.35 + (duration.ok ? 0.15 : 0);
   // Ambiguous or differently labelled mixes never auto-match, even with an ISRC.
   const certain = sameVersion && duration.ok && ((exact && artist > 0) || (sameIsrc && title > 0.8 && artist > 0.8));

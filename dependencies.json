@@ -10,6 +10,12 @@
     "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
     "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
   },
+  "soulseek": {
+    "version": "3.0.6",
+    "url": "https://github.com/fiso64/sockseek/releases/download/v3.0.6/sockseek_3.0.6_win-x64.zip",
+    "sha256": "aa965bdf3bc9b04757380889e1ce96ce1d57fdf89423fb3f7ebf378e469e66c4",
+    "executableSha256": "a9296c39b56c135ff9ab64a5c991df784be6e85eeaa807cefedc3e8d587f5c64"
+  },
   "ffmpeg": {
     "version": "9.0.2",
     "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip",

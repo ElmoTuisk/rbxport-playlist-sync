@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-10-19
+
+- Match equivalent comma/slash artist credits so existing files are not incorrectly marked unresolved.
+- Add Recheck files using cached source metadata; distinguish local matching review from source/download review and offer suggested matches in Resolve.
+- Add optional Soulseek batch fallback through a pinned, verified Sockseek helper, using the existing compact panel.
+- Keep strict identity, duration and audio checks, reuse collection files before searching, retain original playlist entries, and stop a batch on account/connection/setup failure.
+- Encrypt saved Soulseek credentials for the Windows account and remove transient helper authentication files.
+
 ## 0.3.3 — 2026-10-19
 
 - Open Resolve directly below the selected song instead of after the entire missing-track list.

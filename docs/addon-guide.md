@@ -4,12 +4,12 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.3.3, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.4.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.3.3-windows-setup.zip` and extract all files.
+2. Download `playlist-sync-0.4.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -37,11 +37,23 @@ A first link creates a read-only preview automatically. Sync reuses existing col
 
 Resolved source tracks come first in source order. Extra local songs stay at the bottom in their original relative order. Source removals never delete files or local playlist entries. Unavailable source tracks have no placeholder in the local playlist; their status stays visible in the panel.
 
-**Check source** means a track needs review because matching or download checks could not approve it. Resolve opens directly below that song, scrolls into view and shows the exact reason. Choose a file, an existing collection track, another source URL, retry or ignore; save, then Sync to process the choice. A manual source does not bypass quality checks.
+**Recheck files** scans your collection against the saved source list without downloading or changing the playlist. Equivalent comma/slash artist credits match automatically, while different mixes and durations still need review.
+
+**Check existing match** means a local candidate needs confirmation. **Check source** means acquisition needs attention. Resolve opens directly below that song, scrolls into view and shows the exact reason. Choose a suggested existing collection track, a file, another source URL, retry or ignore; save, then Sync to process the choice. A manual source does not bypass quality checks.
 
 Example: source `B, A, C`; local `X, A, Y, B` → `B, A, C, X, Y` when all source tracks are available. The panel reports two retained extras. If C has no suitable source, the result is `B, A, X, Y` and C remains unresolved.
 
 Automatic sync runs at the saved interval, normally hourly, while both processes run. Verified downloads, matches, jobs and run records survive restarts. Jobs held for quality review wait for your retry or a new source. History remains stored locally; the main panel deliberately shows only current status and issues.
+
+## Optional Soulseek fallback
+
+Open **gear → Soulseek fallback**, enter an existing Soulseek account, enable **Use as fallback on Sync**, and click **Save account**. Saving does not test sign-in; the first search does. If another Soulseek client is running, use a separate account to avoid disconnecting it.
+
+Expand a playlist and click **Find missing with Soulseek**. The add-on rechecks existing files and uses the last checked source list to queue unresolved recordings one at a time. Ordinary Sync can also fall back after a web source fails. Explicit file/URL choices remain authoritative, and ambiguous confident local matches still require your choice. Held Soulseek failures wait for an explicit batch retry.
+
+The optional [Sockseek 3.0.6 helper](https://github.com/fiso64/sockseek) downloads automatically on first use; both its archive and executable are checked against pinned SHA-256 hashes. No extra app window is opened. The helper searches for 320 kbps MP3 or lossless sources with matching identity and duration. The add-on then probes and fully decodes the actual file before the existing import pipeline processes it. Progress and Cancel remain in the small panel. An unavailable recording remains in review while the batch continues; account, connection or setup errors stop the batch. Peer queues and availability affect completion, and strict metadata requirements may exclude usable files.
+
+Soulseek credentials use Windows CurrentUser DPAPI encryption and are excluded from API models, logs and process arguments. The helper requires a temporary local plaintext config while it runs; this is removed afterward and cleaned on startup after interruption. No incoming listener or music-folder sharing is enabled. The helper retains its AGPL-3.0 license and is downloaded separately, not bundled in the add-on ZIP. Real helper tests used synthetic audio in offline mock mode; live account transfers still need verification.
 
 ## Audio standard
 
