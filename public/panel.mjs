@@ -2,6 +2,7 @@
 export function mountPanel(root, initial, send) {
   if (root.playlistSyncPanel) { root.playlistSyncPanel.update(initial); return root.playlistSyncPanel; }
   let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false;
+  let bulkFor=null,bulkPlan=null,bulkAlternates=false,bulkNotice='';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
@@ -19,7 +20,8 @@ export function mountPanel(root, initial, send) {
         const status = model.active === link.id ? progress ? `${progress.title} · ${progress.status}${progress.progress ? ` ${progress.progress}` : ''}` : 'Checking playlist…' : link.message || 'Ready to check';
         return `<section class="ps-playlist"><div class="ps-line"><button class="ps-name" type="button" data-action="details" data-id="${esc(link.id)}" aria-expanded="${expanded === link.id}"><span class="ps-symbol ${link.status === 'synced' ? 'ps-good' : link.status === 'attention' || link.status === 'failed' ? 'ps-warn' : ''}" title="${esc(link.status === 'synced' ? 'Synced' : 'Linked playlist')}">⇄</span>${esc(link.name)}</button>${button('sync', 'Sync', link.id, model.active || busy ? 'disabled' : '')}</div><p class="ps-status">${esc(status)}</p>
           ${expanded === link.id ? `<div class="ps-details"><label class="ps-check"><input type="checkbox" data-automatic="${esc(link.id)}" ${link.automatic ? 'checked' : ''}> Auto-sync</label>${link.extraCount ? `<p class="ps-muted">${link.extraCount} extra local songs kept at the bottom.</p>` : ''}
-          <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
+          <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
+          ${bulkFor===link.id?bulkForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
           <details class="ps-more"><summary>All tracks · ${rows().length}</summary>${rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small>${esc(r.track.artist)} · ${esc(labels[r.status] || r.status)}</small></div></div>`).join('')}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
@@ -28,6 +30,16 @@ export function mountPanel(root, initial, send) {
   }
   function linkForm() {
     return `<form data-form="link" class="ps-form"><label>Playlist URL<input name="url" type="url" placeholder="Spotify or SoundCloud link" required></label><label>rbxport playlist<select name="playlistId"><option value="">Create new…</option>${(model.playlists || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><label>New name <span class="ps-muted">(if creating)</span><input name="newName"></label><div class="ps-form-actions">${button('dismiss', 'Cancel')}<button ${busy ? 'disabled' : ''}>Link</button></div></form>`;
+  }
+  function bulkForm() {
+    const entries=bulkPlan?.entries || [];
+    return `<div class="ps-form" data-bulk-preview><strong>${bulkPlan?`Accept ${entries.length} matches and apply source order?`:'Checking existing matches…'}</strong><label class="ps-check"><input type="checkbox" data-bulk-alternates ${bulkAlternates?'checked':''} ${busy?'disabled':''}> Include different lengths or versions</label><p class="ps-muted">Uses your existing files and orders linked songs like the source playlist, with extra songs at the bottom. No downloads. ${bulkAlternates?'Some local versions differ from the source recording.':'Different lengths and versions are excluded.'}</p>${bulkPlan?`<details class="ps-more"><summary>View ${entries.length} suggestions</summary>${entries.map(e=>`<div class="ps-track"><div><strong>${esc(e.title)}</strong><small>→ ${esc(e.localTitle)} · ${Math.round(e.localDuration)}s (source ${Math.round(e.duration)}s)${e.alternate?' · different length/version':''}</small><small>${esc(e.localArtist)}</small></div></div>`).join('')}</details><p class="ps-muted">${bulkPlan.skipped} reviews kept for individual choice. Uses the last checked source order.</p>`:''}<div class="ps-form-actions">${button('bulk-dismiss','Cancel')}${button('bulk-confirm',`Accept ${entries.length} & reorder`,bulkFor,!entries.length||busy||model.active?'disabled':'')}</div></div>`;
+  }
+  async function loadBulkPlan() {
+    bulkPlan=null;render(true);
+    const result=await act('match-plan',{id:bulkFor,includeAlternates:bulkAlternates});
+    if(result && !error)bulkPlan=result;render(true);
+    requestAnimationFrame(()=>root.querySelector('[data-bulk-preview]')?.scrollIntoView({block:'nearest'}));
   }
   function reviewForm(row) {
     if (!row) return '';
@@ -50,13 +62,20 @@ export function mountPanel(root, initial, send) {
   }
   async function act(action, value = {}) {
     error = ''; busy = true;
-    try { await send(action, value); } catch (e) { error = e.message; }
+    try { return await send(action, value); } catch (e) { error = e.message; }
     finally { busy = false; render(true); }
   }
   root.addEventListener('click', async event => {
     const target = event.target.closest('[data-action]'); if (!target) return;
     const { action, id } = target.dataset;
+    if(['details','link','settings'].includes(action)){bulkFor=null;bulkPlan=null;bulkNotice='';}
     if (action === 'details') { expanded = expanded === id ? null : id; reviewing = null; render(true); if (expanded) await act('select', { id }); }
+    else if(action==='bulk-open'){bulkFor=id;bulkAlternates=false;bulkNotice='';reviewing=null;await loadBulkPlan();}
+    else if(action==='bulk-dismiss'){bulkFor=null;bulkPlan=null;render(true);}
+    else if(action==='bulk-confirm' && bulkPlan){
+      const result=await act('accept-matches',{id:bulkFor,includeAlternates:bulkPlan.includeAlternates,signature:bulkPlan.signature});
+      if(result && !error){bulkNotice=result.message;bulkFor=null;bulkPlan=null;render(true);}
+    }
     else if (action === 'link') { mode = mode === 'link' ? '' : 'link'; expanded = null; render(true); if (mode) await act('options'); }
     else if (action === 'settings') { mode = mode === 'settings' ? '' : 'settings'; expanded = null; render(true); }
     else if (action === 'fallback' && !model.soulseek?.enabled) { mode = 'soulseek'; expanded = null; render(true); requestAnimationFrame(() => root.querySelector('[data-form=soulseek]')?.scrollIntoView({block:'nearest'})); }
@@ -74,6 +93,7 @@ export function mountPanel(root, initial, send) {
     else await act(action, { id });
   });
   root.addEventListener('change', async event => {
+    if(event.target.hasAttribute?.('data-bulk-alternates')){bulkAlternates=event.target.checked;await loadBulkPlan();return;}
     if (event.target.dataset.automatic) await act('automatic', { id: event.target.dataset.automatic, automatic: event.target.checked });
     if (event.target.id === 'ps-resolution') {
       const action = event.target.value;
@@ -90,8 +110,8 @@ export function mountPanel(root, initial, send) {
   });
   const controller = { update(value) {
     const selectionChanged = value.selectionRevision !== model.selectionRevision && value.selected;
-    if (selectionChanged) { expanded = value.selected; reviewing = null; mode = ''; }
+    if (selectionChanged) { expanded = value.selected; reviewing = null; mode = '';bulkFor=null;bulkPlan=null;bulkNotice=''; }
     model = value; render(Boolean(selectionChanged));
-  }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = ''; render(true); } };
+  }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = '';bulkFor=null;bulkPlan=null;bulkNotice=''; render(true); } };
   root.playlistSyncPanel = controller; render(); return controller;
 }

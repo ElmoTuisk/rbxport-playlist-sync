@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { access, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { matchTrack, playlistOrder } from './matching.mjs';
+import { matchTrack, playlistOrder, suggestedLocalMatch } from './matching.mjs';
 import { playlistReference, mediaUrl } from './providers.mjs';
 
 export class Engine {
@@ -218,6 +218,81 @@ export class Engine {
       if (['SOULSEEK_AUTH','SOULSEEK_CONNECTION','SOULSEEK_SETUP'].includes(error.code)) throw error;
       return false;
     }
+  }
+  async bulkMatchPlan(id,{includeAlternates=false}={}) {
+    if(this.active)throw Error('Stop the current sync or wait for it to finish before reviewing bulk matches.');
+    this.active=id;this.controller=new AbortController();this.changed();
+    try{return await this.buildBulkMatchPlan(id,includeAlternates===true,this.controller.signal);}
+    finally{this.active=null;this.controller=null;this.changed();this.schedule();}
+  }
+  async buildBulkMatchPlan(id,includeAlternates,signal) {
+    const link=this.store.get('links',id);if(!link)throw Error('Playlist link not found');
+    const library=await this.library(),target=await this.library(link.playlistId);
+    signal?.throwIfAborted();
+    if(library.libraryId!==link.libraryId || target.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+    if(!library.playlists.some(p=>p.id===link.playlistId))throw Error('Target playlist was deleted.');
+    const targetIds=new Set(target.tracks.map(t=>t.id)),reviews=this.rows(id).filter(r=>r.status==='review'&&r.reviewKind==='match');
+    const entries=[];
+    for(const row of reviews){
+      const binding=this.store.get('bindings',this.bindingKey(link.libraryId,row.track.key));
+      if(binding?.ignored || binding?.localId)continue;
+      const candidates=matchTrack(row.track,library.tracks,null,targetIds).candidates;
+      const choice=suggestedLocalMatch({...row,candidates},{includeAlternates});if(!choice)continue;
+      entries.push({rowId:row.id,localId:choice.local.id,title:row.track.title,artist:row.track.artist,duration:row.track.duration,
+        localTitle:choice.local.title,localArtist:choice.local.artist,localDuration:choice.local.duration,alternate:choice.alternate,
+        reason:choice.alternate?'Use this local length/version':'Same recording and duration'});
+    }
+    const choices=new Map(entries.map(e=>[e.rowId,e.localId]));
+    const sourceIds=this.rows(id).flatMap(row=>{
+      if(choices.has(row.id))return [choices.get(row.id)];
+      if(row.track.unavailable)return [];
+      const binding=this.store.get('bindings',this.bindingKey(link.libraryId,row.track.key));
+      const match=matchTrack(row.track,library.tracks,binding,targetIds);
+      return match.status==='matched'?[match.localId]:[];
+    });
+    const currentIds=target.tracks.map(t=>t.id),missing=[...new Set(sourceIds)].filter(id=>!targetIds.has(id));
+    const order=playlistOrder(sourceIds,[...currentIds,...missing]);
+    const signature=createHash('sha256').update(JSON.stringify({id,includeAlternates,snapshot:link.snapshot,entries,sourceIds,currentIds})).digest('hex');
+    return {id,includeAlternates,entries,sourceIds,currentIds,extraCount:order.extraCount,total:reviews.length,skipped:reviews.length-entries.length,signature};
+  }
+  async acceptBulkMatches(id,{includeAlternates=false,signature}={}) {
+    if(this.active)throw Error('Wait for the current sync or cancel it before accepting matches.');
+    if(!/^[a-f0-9]{64}$/.test(String(signature)))throw Error('Review the bulk match preview first.');
+    this.active=id;this.controller=new AbortController();this.changed();
+    try{
+      const plan=await this.buildBulkMatchPlan(id,includeAlternates===true,this.controller.signal);
+      if(plan.signature!==signature)throw Error('Suggestions changed. Open a fresh bulk match preview before accepting.');
+      if(!plan.entries.length)throw Error('No unambiguous suggestions to accept.');
+      const link=this.store.get('links',id),info=await this.bridge.call('info');
+      if(info.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+      for(const entry of plan.entries){
+        const local=await this.bridge.call('track',{libraryId:link.libraryId,id:entry.localId});
+        if(!local.path)throw Error('A suggested file is unavailable. Refresh the preview.');
+        await access(local.path);this.controller.signal.throwIfAborted();
+      }
+      const target=await this.library(link.playlistId);
+      if(target.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+      const before=target.tracks.map(t=>t.id),present=new Set(before),missing=[...new Set(plan.sourceIds)].filter(id=>!present.has(id));
+      if(JSON.stringify(before)!==JSON.stringify(plan.currentIds))throw Error('Playlist changed. Open a fresh bulk match preview.');
+      const expectedIds=[...before,...missing],order=playlistOrder(plan.sourceIds,expectedIds);
+      if(new Set(order.ids).size!==order.ids.length)throw Error('The target contains repeated entries. Remove duplicate memberships before applying bulk matches and order.');
+      // Preserve every current member; only add existing collection files and move extras to the bottom.
+      this.controller.signal.throwIfAborted();
+      if(missing.length)await this.bridge.call('add',{libraryId:link.libraryId,playlistId:link.playlistId,ids:missing});
+      if(order.changed){
+        this.store.put('orders',randomUUID(),{libraryId:link.libraryId,playlistId:link.playlistId,before:expectedIds,after:order.ids,created:Date.now()});
+        await this.bridge.call('reorder',{libraryId:link.libraryId,playlistId:link.playlistId,ids:order.ids,expectedIds});
+      }
+      this.store.transaction(()=>{
+        for(const entry of plan.entries){
+          const row=this.store.get('rows',entry.rowId);
+          this.store.put('bindings',this.bindingKey(link.libraryId,row.track.key),{localId:entry.localId});
+          this.store.put('rows',row.id,{...row,status:'matched',localId:entry.localId,reviewKind:undefined,reason:'Existing match accepted in bulk'});
+        }
+        this.store.put('links',id,{...link,extraCount:order.extraCount,message:`${plan.entries.length} matches accepted · source order applied`});
+      });
+      return {accepted:plan.entries.length,skipped:plan.skipped,extraCount:order.extraCount,message:`${plan.entries.length} existing matches accepted. Source order applied; ${order.extraCount} extra songs kept at the bottom.`};
+    }finally{this.active=null;this.controller=null;this.changed();this.schedule();}
   }
   async resolveRow(id, value) {
     if (this.active) throw new Error('Wait for the current sync or cancel it before changing a match.');

@@ -4,14 +4,14 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.5.0 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.6.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.5.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.6.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -47,6 +47,15 @@ Public SoundCloud playlists usually need no sign-in. For Spotify, the add-on fir
 5. Finish authorization in your browser, then check for **Spotify connected** in the panel.
 
 Start sign-in with **Connect**; opening the redirect address directly does not sign you in. For an expired attempt, click Connect again. Spotify’s [development-mode restrictions](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide) apply. Live Spotify account authorization still needs a full integration test.
+
+## Accept existing matches in bulk
+
+1. Stop/wait for any active sync, then expand the linked playlist.
+2. Click **Accept suggested matches**. Review the count and optional **View suggestions** list.
+3. By default, different lengths and versions are excluded. Enable **Include different lengths or versions** if you want to use your local extended/alternate recordings; their source/local durations are shown.
+4. Click **Accept N & reorder** once. The add-on rechecks existing files and the open library, links the accepted files, and immediately orders all known source songs like Spotify/SoundCloud. Extra local songs stay at the bottom in their previous relative order.
+
+Tied candidates and missing files remain for individual review. A unique eligible file already in the target playlist is preferred. This action uses the last checked source order and performs no downloads, imports or deletions. Normal **Sync** refreshes the online source and processes missing songs. Changed suggestions or playlist membership invalidate an old confirmation. If the playlist contains duplicate memberships, bulk ordering stops and asks you to remove those duplicates first.
 
 ## Missing songs / “Check source”
 

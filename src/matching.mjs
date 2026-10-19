@@ -55,7 +55,8 @@ export function scoreMatch(source, local) {
   const score = title * 0.5 + artist * 0.35 + (duration.ok ? 0.15 : 0);
   // Ambiguous or differently labelled mixes never auto-match, even with an ISRC.
   const certain = sameVersion && duration.ok && ((exact && artist > 0) || (sameIsrc && title > 0.8 && artist > 0.8));
-  return { local, score, certain, reason: !sameVersion ? 'Different version or mix' : !duration.ok ? duration.reason : !certain ? 'Similar metadata; confirm this match' : 'Artist, recording and duration match' };
+  return { local, score, certain, titleScore:title, artistScore:artist, sameArtist, sameTitle:sourceTitle===localTitle, sameVersion, durationOk:duration.ok,
+    reason: !sameVersion ? 'Different version or mix' : !duration.ok ? duration.reason : !certain ? 'Similar metadata; confirm this match' : 'Artist, recording and duration match' };
 }
 
 export function matchTrack(source, library, binding, targetIds = new Set()) {
@@ -65,7 +66,7 @@ export function matchTrack(source, library, binding, targetIds = new Set()) {
     if (found) return { status: found.missing ? 'missing_file' : 'matched', localId: found.id,
       reason: found.missing ? 'Linked file is unavailable; reconnect or relocate it' : 'Your saved match', candidates: [] };
   }
-  const ranked = library.map(t => scoreMatch(source, t)).filter(t => t.score >= 0.66).sort((a, b) => b.score - a.score);
+  const ranked = library.map(t => ({...scoreMatch(source, t),inTarget:targetIds.has(t.id)})).filter(t => t.score >= 0.66).sort((a, b) => b.score - a.score);
   let certain = ranked.filter(t => t.certain);
   const inTarget = certain.filter(t => targetIds.has(t.local.id));
   if (inTarget.length === 1) certain = inTarget;
@@ -73,6 +74,21 @@ export function matchTrack(source, library, binding, targetIds = new Set()) {
     reason: certain[0].local.missing ? 'Matching track has an unavailable file' : certain[0].reason, candidates: ranked.slice(0, 5) };
   if (ranked.length) return { status: 'review', reason: certain.length > 1 ? 'Multiple versions or files match' : ranked[0].reason, candidates: ranked.slice(0, 5) };
   return { status: 'missing', reason: 'No confident match in your library', candidates: [] };
+}
+
+/** A bulk decision requires a single identifiable local recording, never merely the first result. */
+export function suggestedLocalMatch(row, {includeAlternates=false}={}) {
+  if(row.status!=='review' || row.reviewKind!=='match')return null;
+  const baseTitle=t=>recordingTitle(searchVariants(t).at(-1)?.title || t.title,t.artist);
+  const candidates=(row.candidates || []).filter(c=>c.local?.id && !c.local.missing && c.local.path && Number.isFinite(c.local.duration) && c.local.duration>0).map(c=>{
+    const score=scoreMatch(row.track,{...c.local,title:c.local.title});
+    const alternate=!score.sameTitle || !score.sameVersion || !score.durationOk;
+    const identity=(score.sameArtist || score.artistScore>=.8) && (score.sameTitle || (includeAlternates && baseTitle(row.track)===baseTitle({...c.local,title:`${c.local.title}${c.local.mixName?' - '+c.local.mixName:''}`})));
+    return {...score,inTarget:Boolean(c.inTarget),alternate,eligible:identity && (includeAlternates || !alternate)};
+  }).filter(c=>c.eligible);
+  const unique=[...new Map(candidates.map(c=>[c.local.id,c])).values()];
+  const inTarget=unique.filter(c=>c.inTarget);
+  return inTarget.length===1 ? inTarget[0] : unique.length===1 ? unique[0] : null;
 }
 
 /** Source recordings first; preserve every extra occurrence in its current order. */

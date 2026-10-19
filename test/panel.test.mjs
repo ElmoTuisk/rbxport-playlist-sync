@@ -5,7 +5,7 @@ import { mountPanel } from '../public/panel.mjs';
 
 // Run the actual renderer/controller with a small event surface, without adding a DOM dependency.
 // Native browser checks separately verify layout, scrolling and focus geometry.
-function fixture() {
+function fixture(send=async()=>({ok:true})) {
   const events = {};
   const document = { activeElement: null };
   const root = { innerHTML: '', contains: element => element !== null,
@@ -15,9 +15,9 @@ function fixture() {
     { id: 'a', name: 'Fixture playlist A', lastCheck: 1 }, { id: 'b', name: 'Fixture playlist B', lastCheck: 1 }
   ], rows: { a: Array.from({length:85}, (_, i) => row(`a-${i}`, `Fixture song ${i}`)), b: [row('b-0', 'Different playlist song')] } };
   const mount = runInNewContext(`(${mountPanel.toString()})`, {document, requestAnimationFrame: callback => callback()});
-  const controller = mount(root, initial, async () => ({ok:true}));
+  const controller = mount(root, initial, send);
   const click = (action, id) => events.click({target:{closest: () => ({dataset:{action,id}})}});
-  return {root, document, initial, controller, click};
+  return {root, document, initial, controller, click,events};
 }
 
 test('Resolve opens immediately after the chosen song in a long missing-track list', async () => {
@@ -48,4 +48,14 @@ test('source attempt details remain collapsed and escape provider text',async()=
  const{root,initial,controller,click}=fixture();controller.update({...initial,selected:'a',selectionRevision:2,jobs:[{rowId:'a-0',attempts:[{source:'Fixture source',status:'quality',message:'Found <script> below quality'}]}]});await click('review','a-0');
  assert.match(root.innerHTML,/<details class="ps-more"><summary>Source attempts/);assert.match(root.innerHTML,/Found &lt;script&gt; below quality/);assert.doesNotMatch(root.innerHTML,/Found <script>/);
  assert.match(root.innerHTML,/Retry missing/);
+});
+
+test('bulk preview requires its separate confirmation and makes alternate versions an explicit option',async()=>{
+ const calls=[];const f=fixture(async(action,args)=>{calls.push({action,args});if(action==='match-plan')return{id:'a',includeAlternates:args.includeAlternates,signature:'b'.repeat(64),skipped:1,entries:Array.from({length:args.includeAlternates?3:2},()=>({title:'Fixture',localTitle:'Local fixture',localDuration:200,duration:190,alternate:args.includeAlternates}))};if(action==='accept-matches')return{message:'3 existing matches accepted.'};return{ok:true};});
+ const initial={...f.initial,rows:{...f.initial.rows,a:f.initial.rows.a.map(r=>({...r,reviewKind:'match'}))}};
+ f.controller.update({...initial,selected:'a',selectionRevision:2});await f.click('bulk-open','a');
+ assert.match(f.root.innerHTML,/Accept 2 matches and apply source order\?/);assert.match(f.root.innerHTML,/extra songs at the bottom/);assert.match(f.root.innerHTML,/Accept 2 & reorder/);assert(!calls.some(c=>c.action==='accept-matches'));
+ await f.events.change({target:{checked:true,hasAttribute:name=>name==='data-bulk-alternates'}});
+ assert.match(f.root.innerHTML,/Accept 3 matches and apply source order\?/);assert.match(f.root.innerHTML,/Some local versions differ/);
+ await f.click('bulk-confirm','a');const call=calls.find(c=>c.action==='accept-matches');assert.equal(call.args.includeAlternates,true);assert.equal(call.args.signature,'b'.repeat(64));assert.match(f.root.innerHTML,/3 existing matches accepted/);assert.doesNotMatch(f.root.innerHTML,/data-bulk-preview/);
 });

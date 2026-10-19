@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 — 2026-10-19
+
+- Add Accept suggested matches with a count, collapsible preview and one confirmation for existing local-file reviews.
+- Make different lengths/versions an explicit optional choice; keep tied candidates and unavailable files for individual review.
+- Accept and immediately reorder known source songs to Spotify/SoundCloud order, preserving extra local entries at the bottom. No separate download sync is needed.
+- Revalidate library, candidates, files and playlist membership before applying guarded host writes and saving decisions. No downloads, imports or deletions occur during bulk acceptance; duplicate target memberships block it.
+
 ## 0.5.0 — 2026-10-19
 
 - Search SoundCloud originals/search, Newgrounds and YouTube before the optional Soulseek fallback; continue after provider, candidate or format failures.

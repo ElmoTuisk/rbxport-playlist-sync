@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-68 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+77 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,12 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Bulk existing matches 0.6.0
+
+Nine regression tests cover the real renderer's separate confirmation, explicit alternate-version selection, preferred target matches and tied candidates, stale-plan rejection, a file disappearing during revalidation, active-sync locking and wrong-library rejection. They also verify immediate source ordering, existing collection memberships, already confirmed tracks, stable extras, duplicate membership rejection and retry after a failed host reorder. No download, import or analysis calls occur. Failed revalidation or host reorder saves no partial match decisions.
+
+The live native panel (injection version 12) was verified with a long existing-match review list: the standard preview and explicit alternate-version preview loaded, the panel stayed inside the app viewport, and Accept & reorder remained reachable. The checkbox was restored to its default off state and the preview was left open without confirming any real matches. Real bulk ordering was not applied during this UI check; host ordering behavior is covered by the fixture tests above.
 
 ## Downloader revision 0.5.0
 

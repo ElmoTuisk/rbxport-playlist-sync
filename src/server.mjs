@@ -72,6 +72,8 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       case 'automatic': engine.updateLink(args.id, { automatic: args.automatic === true }); break;
       case 'link': { const link = await engine.addLink(args); selected = link.id; selectionRevision++; hostInfo = await bridge.call('info'); startSync(link.id, true); break; }
       case 'resolve': await engine.resolveRow(args.id, args); break;
+      case 'match-plan': return engine.bulkMatchPlan(args.id,args);
+      case 'accept-matches': return engine.acceptBulkMatches(args.id,args);
       case 'settings': engine.saveSettings(args); break;
       case 'spotify': { const url = await spotify.authorize(args.clientId); changed(); return { url }; }
       case 'soulseek': if (engine.active) throw Error('Wait for the current sync before changing Soulseek settings.'); await soulseek.configure(args); changed(); return soulseek.publicStatus();
