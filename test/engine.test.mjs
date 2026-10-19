@@ -59,6 +59,18 @@ test('cached library recheck needs no provider request and never writes playlist
   assert.equal(f.calls.includes('add'), false);
   assert.match(f.store.get('links', f.link.id).message, /2 in collection/);
 });
+
+test('rechecking SoundCloud uploader tags clears stale missing/source reviews and sync reuses the playlist file',async t=>{
+ const f=await fixture(t);f.remote(['a']);await f.engine.sync(f.link.id,{preview:true});
+ const local=f.tracks.find(t=>t.id==='a');local.title='Artist - Evening Song';local.artist='Fixture Label';
+ const row=f.engine.rows(f.link.id)[0];f.store.put('rows',row.id,{...row,status:'review',reviewKind:'source',reason:'Previous download found no source',localId:undefined,track:{...row.track,title:local.title,provider:'soundcloud'}});
+ f.remote(null);f.calls.length=0;
+ assert.equal((await f.engine.sync(f.link.id,{preview:true,cached:true})).status,'complete');
+ const checked=f.engine.rows(f.link.id)[0];assert.equal(checked.status,'matched');assert.equal(checked.localId,'a');assert.equal(checked.reviewKind,undefined);
+ assert(!f.calls.some(c=>['add','reorder','import','analyse'].includes(c)));
+ const run=await f.engine.sync(f.link.id,{cached:true});assert.equal(run.ready,1);assert.deepEqual(f.target,['a','x','y','b']);
+ assert.equal(f.acquisitions(),0);assert(!f.calls.some(c=>['import','analyse'].includes(c)));
+});
 test('analysis failure resumes imported file without downloading again', async t => {
   const f = await fixture(t); f.remote(['new']); f.failAnalysis(true);
   assert.equal((await f.engine.sync(f.link.id)).attention, 1); assert.equal(f.acquisitions(), 1);

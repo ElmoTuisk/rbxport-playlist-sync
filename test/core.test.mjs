@@ -48,6 +48,36 @@ test('video candidates must match identity, version and length', () => {
   for (const candidate of [{ title: 'Artist - A Track', duration: 240 }, { title: 'Artist - A Track (preview)', duration: 200 }, { title: 'Artist - A Track', duration: 200, is_live: true }, { title: 'Artist - A Track VIP', duration: 200 }])
     assert.equal(candidateCheck(source, candidate).ok, false);
 });
+
+test('SoundCloud uploads in the linked playlist match uploader artist tags using exact credited titles and duration',()=>{
+ const upload={...source,provider:'soundcloud',artist:'Fixture Performer',duration:355.6};
+ for(const title of ["FIXTURE PERFORMER - What's New... [LABELFREE002]",'CAT002 - Fixture Performer - Evening Jam [Free DL]','FIXTURE PERFORMER IS IN THE HOUSE [CLIPS]']){
+  const file={...local,artist:'Fixture Label',title,duration:355};
+  const result=matchTrack({...upload,title},[file],null,new Set(['1']));
+  assert.equal(result.localId,'1');assert.equal(result.status,'matched');assert.match(result.reason,/uploader artist tag differs/);
+ }
+});
+
+test('uploader artist differences stay for review outside the linked playlist and never apply to Spotify',()=>{
+ const upload={...source,provider:'soundcloud',artist:'Fixture Performer',title:'Fixture Performer - Evening Jam'};
+ const file={...local,artist:'Fixture Label',title:upload.title};
+ assert.equal(matchTrack(upload,[file]).status,'review');
+ assert.notEqual(matchTrack({...upload,provider:'spotify'},[file],null,new Set(['1'])).status,'matched');
+ assert.notEqual(matchTrack({...upload,title:'Evening Jam'},[{...file,title:'Evening Jam'}],null,new Set(['1'])).status,'matched');
+ assert.notEqual(matchTrack({...upload,artist:'Form'},[file],null,new Set(['1'])).status,'matched');
+});
+
+test('SoundCloud uploader matching preserves duration, mix, duplicate and file-availability checks',()=>{
+ const upload={...source,provider:'soundcloud',artist:'Fixture Performer',title:'Fixture Performer - Evening Jam'};
+ const file={...local,artist:'Fixture Label',title:upload.title};
+ for(const other of [{...file,duration:250},{...file,mixName:'Radio Edit'},{...file,title:upload.title+' Remix'}])
+  assert.notEqual(matchTrack(upload,[other],null,new Set(['1'])).status,'matched');
+ const library=[file,{...file,id:'2'}];
+ assert.equal(matchTrack(upload,library,null,new Set(['1','2'])).status,'review');
+ assert.equal(matchTrack(upload,library,null,new Set(['2'])).localId,'2');
+ assert.equal(matchTrack(upload,[{...file,missing:true}],null,new Set(['1'])).status,'missing_file');
+ assert.equal(matchTrack(upload,[file],{ignored:true},new Set(['1'])).status,'ignored');
+});
 test('strict quality rejects lossy upscaling and unknown bitrate', () => {
   for (const format of [{ acodec: 'opus', abr: 320 }, { acodec: 'aac', abr: 320 }, { acodec: 'mp3', abr: 128 }, { acodec: 'mp3' }]) assert.equal(sourceQuality(format).ok, false);
   assert.equal(sourceQuality({ acodec: 'mp3', abr: 320 }).ok, true);

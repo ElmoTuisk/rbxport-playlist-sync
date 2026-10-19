@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 — 2026-10-19
+
+- Recognize SoundCloud uploads already in the linked playlist when imported artist tags name the uploader/label instead of the performer. Require an exact normalized full upload title containing the performer credit, matching duration and version, and one unambiguous target match.
+- Keep candidates outside the target for review and retain missing-file, duplicate, mix and duration protections. Recheck files clears old missing/source reviews when the recording is already present.
+
 ## 0.6.0 — 2026-10-19
 
 - Add Accept suggested matches with a count, collapsible preview and one confirmation for existing local-file reviews.

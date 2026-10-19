@@ -51,11 +51,16 @@ export function scoreMatch(source, local) {
   // Providers use commas while DJ libraries often use slashes for the same credits.
   // Compare the complete normalized credit too; do not guess artist spelling changes.
   const sameArtist = primaryArtist(source.artist) === primaryArtist(local.artist) || normalize(source.artist) === normalize(local.artist);
+  // SoundCloud artist metadata can name the performer while imported tags name the uploader.
+  // Use the unchanged full upload title as evidence only when it also contains the performer credit.
+  const uploadTitle=normalize(source.title),credit=primaryArtist(source.artist);
+  const uploadIdentity=source.provider==='soundcloud' && !sameArtist && credit.length>=2 && uploadTitle===normalize(local.title) &&
+    (` ${uploadTitle} `).includes(` ${credit} `) && uploadTitle.replace(credit,'').trim().length>=2;
   const exact = sourceTitle === localTitle && sameArtist;
   const score = title * 0.5 + artist * 0.35 + (duration.ok ? 0.15 : 0);
   // Ambiguous or differently labelled mixes never auto-match, even with an ISRC.
   const certain = sameVersion && duration.ok && ((exact && artist > 0) || (sameIsrc && title > 0.8 && artist > 0.8));
-  return { local, score, certain, titleScore:title, artistScore:artist, sameArtist, sameTitle:sourceTitle===localTitle, sameVersion, durationOk:duration.ok,
+  return { local, score:uploadIdentity?Math.max(score,.8):score, certain, uploadIdentity, titleScore:title, artistScore:artist, sameArtist, sameTitle:sourceTitle===localTitle, sameVersion, durationOk:duration.ok,
     reason: !sameVersion ? 'Different version or mix' : !duration.ok ? duration.reason : !certain ? 'Similar metadata; confirm this match' : 'Artist, recording and duration match' };
 }
 
@@ -66,7 +71,12 @@ export function matchTrack(source, library, binding, targetIds = new Set()) {
     if (found) return { status: found.missing ? 'missing_file' : 'matched', localId: found.id,
       reason: found.missing ? 'Linked file is unavailable; reconnect or relocate it' : 'Your saved match', candidates: [] };
   }
-  const ranked = library.map(t => ({...scoreMatch(source, t),inTarget:targetIds.has(t.id)})).filter(t => t.score >= 0.66).sort((a, b) => b.score - a.score);
+  const ranked = library.map(t => {
+    const match=scoreMatch(source,t),inTarget=targetIds.has(t.id);
+    if(inTarget && match.uploadIdentity && match.sameVersion && match.durationOk)
+      return {...match,inTarget,certain:true,score:Math.max(match.score,.95),reason:'SoundCloud upload title, performer credit and duration match in this playlist; uploader artist tag differs'};
+    return {...match,inTarget};
+  }).filter(t => t.score >= 0.66).sort((a, b) => b.score - a.score);
   let certain = ranked.filter(t => t.certain);
   const inTarget = certain.filter(t => targetIds.has(t.local.id));
   if (inTarget.length === 1) certain = inTarget;

@@ -4,14 +4,14 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.6.0 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.6.1 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.6.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.6.1-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -62,6 +62,8 @@ Tied candidates and missing files remain for individual review. A unique eligibl
 Expand the playlist and press **Retry missing** to retry held songs across all supported sources using the last checked source list. It reuses local files first. Cancelled jobs and explicit file/URL choices remain under your control. Source-specific failures are shown under **Resolve → Source attempts**: no results, wrong recording/length, low quality, blocked provider or a failed transfer. A song being on the web does not guarantee a qualifying downloadable source.
 
 **Recheck files** scans your existing collection using the saved source list, without downloads or playlist writes. Equivalent comma/slash artist credits now match automatically. **Check existing match** means a local candidate needs confirmation; Resolve offers the suggested tracks in a dropdown. Different mixes and lengths are kept separate.
+
+SoundCloud files sometimes name the uploader or label in their artist tag. When such a file is already in the linked playlist, the add-on recognizes it from the exact full upload title containing the performer credit, matching duration and matching version. Duplicate candidates stay for review. After updating, use **Recheck files** to clear stale missing/source warnings for these existing uploads.
 
 Click the playlist name, then **Resolve** beside a song to see the exact reason. The form opens directly below that song. You can supply an audio file, match an existing collection track by its rbxport track ID, provide another source URL, retry, or ignore it. Save your choice, then Sync again to process it.
 

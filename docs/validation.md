@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-77 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+81 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,12 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## SoundCloud uploader matching 0.6.1
+
+Four regression tests cover uploader/performer artist-tag differences with exact credited upload titles, catalog prefixes and sentence-style titles; target-only automatic matching; Spotify and generic-title exclusions; version/duration, duplicate and missing-file checks; and a cached recheck clearing a stale source review followed by sync reusing the existing file without acquisition/import/analysis.
+
+A live linked SoundCloud playlist previously showed four unresolved source items even though their exact upload titles were already present in its target. The local artist tags named uploader/label accounts, while source metadata named performers. All four files were present and their durations differed by less than one second. After applying the fix, a cached Recheck files recognized all 46 source songs with zero needing attention. Independent before/after target-ID checks confirmed that all 56 existing entries and their order stayed unchanged; no downloads or playlist writes were performed. The native panel displayed the corrected count and no-attention message. Private track metadata, account data and screenshots are excluded from this package.
 
 ## Bulk existing matches 0.6.0
 
