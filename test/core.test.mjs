@@ -58,13 +58,22 @@ test('SoundCloud uploads in the linked playlist match uploader artist tags using
  }
 });
 
-test('uploader artist differences stay for review outside the linked playlist and never apply to Spotify',()=>{
+test('unique SoundCloud uploader matches reuse the whole collection but never apply to Spotify or generic titles',()=>{
  const upload={...source,provider:'soundcloud',artist:'Fixture Performer',title:'Fixture Performer - Evening Jam'};
  const file={...local,artist:'Fixture Label',title:upload.title};
- assert.equal(matchTrack(upload,[file]).status,'review');
+ assert.equal(matchTrack(upload,[file]).status,'matched');
+ assert.equal(matchTrack(upload,[file,{...file,id:'2'}]).status,'review');
  assert.notEqual(matchTrack({...upload,provider:'spotify'},[file],null,new Set(['1'])).status,'matched');
  assert.notEqual(matchTrack({...upload,title:'Evening Jam'},[{...file,title:'Evening Jam'}],null,new Set(['1'])).status,'matched');
  assert.notEqual(matchTrack({...upload,artist:'Form'},[file],null,new Set(['1'])).status,'matched');
+});
+
+test('bracketed featured credits and slash artist lists reuse the same recording without merging artist names or mixes',()=>{
+ const upload={...source,title:'Evening Song (Alice Club Mix) [feat. Fixture Singer]',artist:'Fixture Band Feat. Fixture Singer'};
+ const file={...local,title:'Evening Song - Alice Club Mix',artist:'Fixture Band/Fixture Singer/Alice'};
+ assert.equal(matchTrack(upload,[file]).localId,'1');
+ assert.notEqual(matchTrack(upload,[{...file,title:'Evening Song - Bob Club Mix'}]).status,'matched');
+ assert.notEqual(matchTrack({...source,artist:'AC/DC'},[{...local,artist:'AC'}]).status,'matched');
 });
 
 test('SoundCloud uploader matching preserves duration, mix, duplicate and file-availability checks',()=>{

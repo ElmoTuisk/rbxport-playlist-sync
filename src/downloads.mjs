@@ -11,7 +11,10 @@ export class Downloads {
   args() { const s = this.settings(); return ['--ignore-config', '--no-warnings', '--js-runtimes',`node:${process.execPath}`,'--socket-timeout','20','--retries','2','--fragment-retries','3', ...(s.cookiesFile ? ['--cookies', s.cookiesFile] : [])]; }
   async metadata(url, { playlist = false, signal, limit, search = false } = {}) {
     const s = this.settings();
-    const result = await this.runner(s.ytdlp, [...this.args(), '--skip-download', '--dump-single-json', ...(playlist ? ['--yes-playlist','--ignore-errors',...(limit ? ['--playlist-end',String(limit)] : [])] : ['--no-playlist']), '--', url], { signal, timeout: search ? 90000 : playlist ? 900000 : 180000, maxBytes: 64 * 1024 * 1024 });
+    // Reading a playlist is independent of playable formats. Keep protected/unplayable
+    // tracks as metadata so one source cannot prevent local matching or other sources.
+    // This flag is deliberately absent from actual download commands.
+    const result = await this.runner(s.ytdlp, [...this.args(), '--skip-download', '--dump-single-json', '--ignore-no-formats-error', ...(playlist ? ['--yes-playlist',...(search ? ['--ignore-errors'] : []),...(limit ? ['--playlist-end',String(limit)] : [])] : ['--no-playlist']), '--', url], { signal, timeout: search ? 90000 : playlist ? 900000 : 180000, maxBytes: 64 * 1024 * 1024 });
     return JSON.parse(result);
   }
   async *candidates(track, signal, report = () => {}) {
@@ -72,6 +75,9 @@ export class Downloads {
         const length = Number(candidate.duration) ? durationCheck(track.duration,candidate.duration) : {ok:true};
         if (!length.ok || (!identity.ok && !job.overrideUrl)) { report({source,status:'mismatch',message:length.reason || identity.reason}); continue; }
         const formats = candidateFormats(candidate,{policy:s.quality}).slice(0,2);
+        if (!formats.length && (candidate._has_drm || candidate.has_drm || candidate.formats?.some(f=>f.has_drm))) {
+          report({source,status:'protected',message:'Source is DRM-protected; trying other sources'});continue;
+        }
         if (!formats.length) { report({source,status:'quality',message:`Recording found, but no 320 kbps MP3${s.quality==='club-aac-256'?', 256 kbps AAC':''} or lossless format is offered`}); continue; }
         for (const format of formats) {
           if (++downloads > 8) break;

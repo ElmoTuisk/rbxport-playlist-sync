@@ -11,7 +11,8 @@ function similarity(a, b) {
 }
 
 function recordingTitle(title, artist) {
-  let text = normalize(title).replace(/\bfree (download|dl|dowload)\b/g, '').replace(/\boriginal (mix|version)\b/g,'').trim();
+  const withoutFeatures=title.replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'');
+  let text = normalize(withoutFeatures).replace(/\bfree (download|dl|dowload)\b/g, '').replace(/\boriginal (mix|version)\b/g,'').trim();
   const prefix = primaryArtist(artist);
   if (prefix && text.startsWith(`${prefix} `)) text = text.slice(prefix.length + 1);
   return text.replace(/\s+/g, ' ').trim();
@@ -50,7 +51,10 @@ export function scoreMatch(source, local) {
   const sameIsrc = Boolean(source.isrc && local.isrc && source.isrc === local.isrc);
   // Providers use commas while DJ libraries often use slashes for the same credits.
   // Compare the complete normalized credit too; do not guess artist spelling changes.
-  const sameArtist = primaryArtist(source.artist) === primaryArtist(local.artist) || normalize(source.artist) === normalize(local.artist);
+  const sourceCredits=source.artist.split(/[,，]|\s+(?:feat\.?|ft\.?)\s+/i).map(normalize).filter(Boolean);
+  const localCredits=local.artist.split(/[,，/]|\s+(?:feat\.?|ft\.?)\s+/i).map(normalize).filter(Boolean);
+  const sameArtist = primaryArtist(source.artist) === primaryArtist(local.artist) || normalize(source.artist) === normalize(local.artist) ||
+    (sourceCredits.length>1 && sourceCredits.every(credit=>localCredits.includes(credit)));
   // SoundCloud artist metadata can name the performer while imported tags name the uploader.
   // Use the unchanged full upload title as evidence only when it also contains the performer credit.
   const uploadTitle=normalize(source.title),credit=primaryArtist(source.artist);
@@ -73,8 +77,8 @@ export function matchTrack(source, library, binding, targetIds = new Set()) {
   }
   const ranked = library.map(t => {
     const match=scoreMatch(source,t),inTarget=targetIds.has(t.id);
-    if(inTarget && match.uploadIdentity && match.sameVersion && match.durationOk)
-      return {...match,inTarget,certain:true,score:Math.max(match.score,.95),reason:'SoundCloud upload title, performer credit and duration match in this playlist; uploader artist tag differs'};
+    if(match.uploadIdentity && match.sameVersion && match.durationOk)
+      return {...match,inTarget,certain:true,score:Math.max(match.score,.95),reason:'SoundCloud upload title, performer credit and duration match in your collection; uploader artist tag differs'};
     return {...match,inTarget};
   }).filter(t => t.score >= 0.66).sort((a, b) => b.score - a.score);
   let certain = ranked.filter(t => t.certain);

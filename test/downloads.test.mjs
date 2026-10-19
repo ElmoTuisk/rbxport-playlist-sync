@@ -33,6 +33,32 @@ test('a blocked provider does not stop discovery on another provider',async t=>{
  const result=await f.d.acquire(track,{id:'test'},()=>{},new AbortController().signal);
  assert.equal(result.quality.ok,true);assert.equal(f.requests.length,2);assert(result.attempts.some(a=>a.status==='unavailable'));
 });
+
+test('metadata tolerates unavailable formats only while reading; complete source scans never ignore extraction errors',async()=>{
+ const calls=[],raw={title:'Fixture set',playlist_count:2,entries:[candidate('normal'),candidate('protected',{formats:[],_has_drm:true})]};
+ const d=new Downloads(()=>({ytdlp:'fixture'}),{runner:async(exe,args)=>{calls.push(args);assert(args.includes('--skip-download'));assert(args.includes('--ignore-no-formats-error'));return JSON.stringify(raw);}});
+ const p=new Providers(null,d),result=await p.playlist({provider:'soundcloud',url:'https://soundcloud.com/fixture/sets/test'});
+ assert.equal(result.tracks.length,2);assert.equal(result.tracks[1].unavailable,false);assert(!calls[0].includes('--ignore-errors'));
+ await d.metadata('scsearch5:Fixture',{playlist:true,search:true});assert(calls[1].includes('--ignore-errors'));
+ d.runner=async()=>{throw Error('Tool exited 1: HTTP 503');};await assert.rejects(p.playlist({provider:'soundcloud',url:'https://soundcloud.com/fixture/sets/test'}),/HTTP 503/);
+});
+
+test('protected source candidates do not download and other sources can still supply verified audio',async t=>{
+ const f=await fixture(t),attempted=[],run=f.d.runner;
+ f.d.runner=async(exe,args,options)=>{assert(!args.includes('--ignore-no-formats-error'));return run(exe,args,options);};
+ f.d.metadata=async url=>{attempted.push(url);return attempted.length===1?candidate('protected',{formats:[],_has_drm:true}):{entries:[candidate('good')]};};
+ const result=await f.d.acquire({...track,provider:'soundcloud',url:'https://soundcloud.com/fixture/protected'},{id:'test'},()=>{},new AbortController().signal);
+ assert.equal(f.downloaded.length,1);assert(f.downloaded[0].endsWith('/good'));assert(result.attempts.some(a=>a.status==='protected'));assert.equal(result.quality.ok,true);
+ assert.equal(candidateFormats({formats:[{ext:'mp3',acodec:'mp3',abr:320,has_drm:true}]}).length,0);
+});
+
+test('SoundCloud source snapshots reject missing entries, IDs, durations and count mismatches',async()=>{
+ const good=candidate('one'),p=new Providers(null,{metadata:async()=>({title:'Fixture',playlist_count:1,entries:[good]})}),ref={provider:'soundcloud',url:'https://soundcloud.com/fixture/sets/test'};
+ assert.equal((await p.playlist(ref)).tracks.length,1);
+ for(const raw of [{playlist_count:2,entries:[good]},{entries:[good,null]},{entries:[{...good,id:undefined}]},{entries:[{...good,duration:0}]}]){
+  p.tools.metadata=async()=>raw;await assert.rejects(p.playlist(ref),/incomplete/i);
+ }
+});
 test('known low-quality formats are reported as found but rejected, not downloaded',async t=>{
  const f=await fixture(t);f.d.metadata=async()=>({entries:[candidate('low',{formats:[{format_id:'aac',acodec:'aac',ext:'m4a',abr:160}]})]});
  await assert.rejects(f.d.acquire(track,{id:'test'},()=>{},new AbortController().signal),e=>e.code==='QUALITY_REVIEW'&&/Recordings were found/.test(e.message));

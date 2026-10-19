@@ -23,7 +23,7 @@ export function chooseFormat(info) {
 
 /** Missing remote bitrate is a reason to probe the file, not a reason to discard it. */
 export function candidateFormats(info, options = {}) {
-  const formats = (info.formats || [info]).filter(f=>f.vcodec === 'none' || !f.vcodec);
+  const formats = (info.formats || [info]).filter(f=>!f.has_drm && (f.vcodec === 'none' || !f.vcodec));
   return formats.filter(f => sourceQuality(f,options).ok ||
     ((!f.acodec || ['mp3','unknown'].includes(f.acodec)) && f.ext === 'mp3' && !Number(f.abr || Number(f.bit_rate || 0)/1000)) ||
     (options.policy==='club-aac-256' && /^(aac|mp4a(?:\.40\.[25])?|unknown)?$/.test(f.acodec||'') && /^(m4a|aac)$/.test(f.ext||'') && !Number(f.abr || Number(f.bit_rate || 0)/1000)))

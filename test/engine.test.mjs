@@ -60,10 +60,11 @@ test('cached library recheck needs no provider request and never writes playlist
   assert.match(f.store.get('links', f.link.id).message, /2 in collection/);
 });
 
-test('rechecking SoundCloud uploader tags clears stale missing/source reviews and sync reuses the playlist file',async t=>{
+test('rechecking SoundCloud uploader tags clears stale source reviews and reuses collection files outside the target',async t=>{
  const f=await fixture(t);f.remote(['a']);await f.engine.sync(f.link.id,{preview:true});
  const local=f.tracks.find(t=>t.id==='a');local.title='Artist - Evening Song';local.artist='Fixture Label';
  const row=f.engine.rows(f.link.id)[0];f.store.put('rows',row.id,{...row,status:'review',reviewKind:'source',reason:'Previous download found no source',localId:undefined,track:{...row.track,title:local.title,provider:'soundcloud'}});
+ f.target.splice(f.target.indexOf('a'),1);
  f.remote(null);f.calls.length=0;
  assert.equal((await f.engine.sync(f.link.id,{preview:true,cached:true})).status,'complete');
  const checked=f.engine.rows(f.link.id)[0];assert.equal(checked.status,'matched');assert.equal(checked.localId,'a');assert.equal(checked.reviewKind,undefined);

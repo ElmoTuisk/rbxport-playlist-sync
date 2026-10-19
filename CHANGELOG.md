@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 — 2026-10-19
+
+- Read SoundCloud metadata even when individual tracks have no playable formats, so DRM-protected entries no longer abort the entire source playlist. The metadata-only option never reaches download commands.
+- Reject DRM-protected candidate formats and continue source failover; retain complete-snapshot checks and validate playlist counts/track IDs.
+- Reuse unique SoundCloud uploader-tag matches anywhere in the collection, including files used by other playlists. Normalize bracketed featured credits and equivalent multi-artist lists while retaining mix, duration, duplicate and missing-file checks.
+
 ## 0.6.1 — 2026-10-19
 
 - Recognize SoundCloud uploads already in the linked playlist when imported artist tags name the uploader/label instead of the performer. Require an exact normalized full upload title containing the performer credit, matching duration and version, and one unambiguous target match.

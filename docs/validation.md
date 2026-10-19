@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-81 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+85 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,12 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## SoundCloud metadata and collection reuse 0.6.2
+
+Regression coverage verifies that no-format tolerance is scoped to metadata commands, complete scans do not ignore extraction errors, DRM sources/format records are never downloaded, discovery continues to a verified alternative, and missing entries/IDs/durations/count mismatches reject a source snapshot. Matching tests cover unique uploader-tag files outside the target, duplicate copies and featured-credit normalization without changing mix or AC/DC identity safeguards. An engine fixture reuses a collection file outside the target without acquiring or importing it.
+
+The live failing playlist contained 25 source tracks; three protected SoundCloud entries caused the old complete scan to exit with status 1. The metadata-only revision returned all 25 with IDs, titles and durations, including those protected entries. A plain flat-playlist read was also examined and rejected as a solution because it returned track stubs without complete titles/durations. A read-only comparison against the current collection identified 20 existing recordings; several were members of another local playlist. No protected audio was downloaded during this metadata check.
 
 ## SoundCloud uploader matching 0.6.1
 

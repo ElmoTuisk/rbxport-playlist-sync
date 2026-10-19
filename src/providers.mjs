@@ -210,7 +210,9 @@ export class Providers {
       }
     }
     const raw = await this.tools.metadata(ref.url, { playlist: true, signal });
-    if (!Array.isArray(raw.entries) || raw.entries.some(e => !e)) throw new Error('Incomplete SoundCloud playlist; previous snapshot retained.');
+    if (!Array.isArray(raw.entries) || raw.entries.some(e => !e?.id) ||
+        (raw.playlist_count!==undefined && (!Number.isInteger(raw.playlist_count) || raw.playlist_count<0 || raw.entries.length!==raw.playlist_count)))
+      throw new Error('Incomplete SoundCloud playlist; previous snapshot retained.');
     const tracks = raw.entries.map(e => {
       if (!e.title || !e.duration) throw new Error('SoundCloud returned incomplete track metadata; previous snapshot retained.');
       return { key: `soundcloud:${e.id}`, id: String(e.id), provider: 'soundcloud', title: e.track || e.title,
