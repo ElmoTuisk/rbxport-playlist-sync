@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile, readFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { Downloads } from '../src/downloads.mjs';
+import { run } from '../src/process.mjs';
+const tools = fileURLToPath(new URL('../.tools/', import.meta.url));
+const ffmpeg = process.env.FFMPEG || (existsSync(join(tools, 'ffmpeg.exe')) ? join(tools, 'ffmpeg.exe') : 'ffmpeg');
+const ffprobe = process.env.FFPROBE || (existsSync(join(tools, 'ffprobe.exe')) ? join(tools, 'ffprobe.exe') : 'ffprobe');
+const available = spawnSync(ffmpeg, ['-version'], { windowsHide: true }).status === 0 && spawnSync(ffprobe, ['-version'], { windowsHide: true }).status === 0;
+test('real audio: accept 320 MP3/lossless, reject 128 MP3 and truncated audio, never overwrite published files', { skip: !available }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'playlist-sync-audio-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const downloads = new Downloads(() => ({ ffmpeg, ffprobe, musicFolder: dir }));
+  const track = { key: 'test:1', title: 'Synthetic test', artist: 'Fixture', duration: 10 };
+  for (const [name, args] of [['low.mp3', ['-c:a', 'libmp3lame', '-b:a', '128k']], ['high.mp3', ['-c:a', 'libmp3lame', '-b:a', '320k']], ['lossless.flac', ['-c:a', 'flac']]])
+    await run(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10', '-ar', '44100', '-ac', '2', ...args, join(dir, name)]);
+  await assert.rejects(downloads.verify(join(dir, 'low.mp3'), track), /Quality check/);
+  assert.equal((await downloads.verify(join(dir, 'high.mp3'), track, undefined, true)).bitrate, 320);
+  const signal = new AbortController().signal;
+  const output = await downloads.acquire(track, { id: 'job', sourcePath: join(dir, 'lossless.flac') }, () => {}, signal);
+  assert.equal(output.quality.bitrate, 320);
+  const before = await readFile(output.file), stamp = (await stat(output.file)).mtimeMs;
+  await downloads.acquire(track, { id: 'job', sourcePath: join(dir, 'lossless.flac') }, () => {}, signal);
+  assert.deepEqual(await readFile(output.file), before); assert.equal((await stat(output.file)).mtimeMs, stamp);
+  const bytes = await readFile(join(dir, 'high.mp3')); await writeFile(join(dir, 'broken.mp3'), bytes.subarray(0, Math.floor(bytes.length / 4)));
+  await assert.rejects(downloads.verify(join(dir, 'broken.mp3'), track));
+});

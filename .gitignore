@@ -1,0 +1,14 @@
+.local-data/
+.tools/
+node_modules/
+*.sqlite*
+*.dpapi
+launch-url.txt
+*.log
+test-results/
+cookies*.txt
+*.zip
+.runtime/
+.install-cache/
+.installer-test/
+installed.json

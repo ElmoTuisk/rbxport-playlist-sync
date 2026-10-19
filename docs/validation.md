@@ -1,0 +1,52 @@
+# Validation record
+
+Updated 19 October 2026. This record distinguishes tests from unverified integrations.
+
+## Automated checks
+
+Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 challenge/verifier correspondence, invalid and expired states, incomplete callbacks, cancellation, duplicate/repeated success callbacks, provider Client ID errors, malformed token responses and friendly callback pages. A Windows test uses actual DPAPI-protected files with fresh vault instances to verify restart recovery and encrypted pending state. Token exchange is faked in these tests; they do not claim a successful live Spotify account authorization.
+
+The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
+
+37 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+
+- Source order, stable extras, repeat-sync idempotence and source removals.
+- Duplicate collection matching, duplicate target protection and missing files.
+- Mix/version distinctions, candidate identity and duration checks.
+- Strict source bitrate/codec policy and independent stream metadata.
+- Real synthetic 128 kbps MP3 rejection, 320 kbps MP3 acceptance, lossless conversion and published-file preservation.
+- Truncated MP3 rejection using decoded duration even when its header claims full length.
+- Partial source failures preserve snapshots; interrupted analysis resumes without redownloading.
+- Spotify pagination and concurrent snapshot changes using a fake API.
+- Local API pairing, Host/Origin restrictions, static-file allowlist and read-only demo mode.
+- Native bridge expressions and guarded reorder execution with a fake Tauri host.
+- Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
+- Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Minimal native panel
+
+Version 0.3.3 opens Resolve immediately below the selected missing song, scrolls the form into view and focuses its action selector. Live read-only UI checks passed on the first, middle and last unresolved rows in playlists with four and 85 unresolved tracks. Each form was adjacent to its own row, fully visible and within the app viewport. No resolution was saved and no music or playlist entries were changed by those checks. Switching playlists with a focused resolution field now forces the newly selected details to render. Two automated renderer/controller regression tests cover inline form placement in an 85-row fixture and focused-field playlist selection.
+
+Version 0.3.1 fixes the popover keeping its initial position after content expansion. ResizeObserver now measures content changes and the geometry clamps the complete panel to the visible viewport. Live checks passed with expanded Advanced settings at a normal 1536 × 870 CSS-pixel viewport and a short 900 × 420 viewport. In the short view the panel stayed between y=12 and y=408, scrolled internally, and the settings Save button was reachable above the footer. The original viewport was restored after testing. Three automated regression tests cover content growth near the bottom, oversized panels and narrow/offset viewports.
+
+Version 0.3.0 was attached to the running Windows rbxport app. Its entry appeared directly below Tag List on the left. The popover measured 390 pixels wide and showed one linked playlist, a single Sync action, its current status and a link action. No dashboard or navigation tabs remain. A muted amber symbol appeared beside the real linked playlist while four tracks needed attention. Clicking that symbol successfully traversed the main-frame request/reply binding, opened four unresolved rows and showed the retained-extras notice. Closing and reopening the ordinary panel collapsed those details again. Read-only host rows were exercised; their missing drop-target ID is handled by exact unique-name matching. The annotation is display-only and preserves native playlist names. The production Desktop and Start Menu shortcuts were also created for the user's current source installation with a verified private Node runtime.
+
+## Desktop setup
+
+Version 0.2.0 was installed and updated in an isolated Windows workspace folder with private Node 24.19.0, yt-dlp 2026.08.19 and FFmpeg/FFprobe 9.0.2. Cached distribution files passed the same SHA-256 checks used for downloads. The installed copy ran with automatically configured tool paths and a default Music folder; all three tool health checks passed. The fixture used fictional demo data and did not copy real playlist state.
+
+Desktop, Start Menu and Stop shortcuts were created under an isolated shortcut root and inspected for existing targets, quoted script paths and hidden-console launch arguments. The production launcher opened an Edge app window with the Playlist Sync title using the existing user's settings; the compact UI layout was visually checked. A genuinely clean-machine internet installation still needs release testing. Local setup reused verified cached downloads and suppressed automatic launch for the fixture.
+
+## Live integration
+
+The Windows rbxport 1.9.0 automation connection, library identity, playlist enumeration and full collection scan were verified against an explicitly selected local playlist. The SoundCloud source contained 46 tracks; the updated read-only preview confidently matched 42 and found 4 missing. Playlist details, account data and local paths are excluded from this distributable document.
+
+The live sync completed: 42 source tracks were placed first in source order, followed by 14 extra local entries in their original relative order. One existing collection track was added to the target, taking it from 55 to 56 entries. All original entries were retained. Four missing tracks remained in review because no acceptable source was available; no new audio was downloaded. Independent before/after checks verified both the source prefix and extras ordering. Hourly automatic sync was enabled for this explicitly requested link.
+
+The first write run exposed a JavaScript declaration collision in the reorder adapter. It failed before reordering; the adapter was fixed, a regression test was added, and the subsequent run succeeded. A real-audio test also exposed truncated files whose headers claim a full duration; decoded duration is now checked independently.
+
+Live Spotify authentication is not verified because no Spotify Client ID/account was supplied. Successful fixture tests do not establish that an account is allowed by Spotify's developer policy. The public source package excludes the real playlist state and reports.
+
+## Release confidence
+
+This is an experimental first release, not a general compatibility guarantee. Test the pinned rbxport command shapes after any host update. Network/provider changes can affect source metadata and downloader behavior. Tool checksums were verified for the local test installation; tool binaries are not included in the source package.

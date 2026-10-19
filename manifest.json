@@ -1,0 +1,20 @@
+{
+  "id": "playlist-sync",
+  "name": "Playlist Sync",
+  "version": "0.3.3",
+  "bridgeVersion": 1,
+  "runtime": "Node.js 24",
+  "entry": "src/server.mjs",
+  "hostPatchRequired": false,
+  "integration": "Windows rbxport 1.9.0 opt-in local automation (RBXPORT_DEVTOOLS_PORT)",
+  "capabilities": [
+    "library.read",
+    "tracks.import",
+    "playlists.add",
+    "playlists.reorder",
+    "tracks.analyse"
+  ],
+  "qualityPolicy": "320 kbps MP3 output from MP3 >= 320 kbps or lossless source",
+  "display": "in-rbxport-popover-below-tag-list",
+  "installer": "Install-Playlist-Sync.cmd"
+}
