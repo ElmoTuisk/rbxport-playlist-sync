@@ -4,10 +4,12 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Windows x64 · Experimental v0.3.3 · Tested with rbxport 1.9.0**
 
+[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
+
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From this repository’s **Releases** section, download **`playlist-sync-0.3.3-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.3.3-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.

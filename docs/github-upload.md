@@ -10,4 +10,4 @@ The repository’s README is the installation page. There is no separate website
 
 Before publishing, follow [the release checklist](releasing.md) and inspect [validation](validation.md). A clean-machine internet installation and live Spotify account sign-in still need release testing. Never publish `.local-data`, `.tools`, `.runtime`, `.install-cache`, `.installer-test`, `installed.json`, cookies, tokens, music, private screenshots or launch pairing URLs.
 
-The existing `chrisle/rbxport` remote belongs to the host application; use your own new repository for this add-on. No repository or release has been published by this task.
+The existing `chrisle/rbxport` remote belongs to the host application; this add-on is published separately at [ElmoTuisk/rbxport-playlist-sync](https://github.com/ElmoTuisk/rbxport-playlist-sync). Setup scripts never publish repositories or releases automatically.
