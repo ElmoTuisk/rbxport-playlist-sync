@@ -1,17 +1,17 @@
 # Playlist Sync for rbxport
 
-A small add-on that links your Spotify and SoundCloud playlists to rbxport. It reuses songs already in your collection and checks missing downloads before importing them.
+A small add-on that links your Spotify and SoundCloud playlists to rbxport. It reuses songs already in your collection, searches multiple sources for missing recordings, and checks actual audio before importing it.
 
-Optional **Soulseek batch fallback** searches for missing recordings while keeping the 320 kbps MP3/lossless requirement.
+**Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.4.1 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.5.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.4.1-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.5.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -21,7 +21,7 @@ For future sessions, use the **Playlist Sync** Desktop or Start Menu shortcut. I
 
 ## Link your first playlist
 
-1. Copy a public SoundCloud playlist URL, or connect Spotify below and copy a Spotify playlist URL.
+1. Copy a public SoundCloud or Spotify playlist URL. Spotify account setup is below if needed.
 2. Open **Playlist sync → + Link playlist**.
 3. Paste the URL and choose an existing rbxport playlist, or select **Create new…**. Save.
 4. The add-on previews the link without importing or rearranging songs. Click the playlist name to inspect it, then press **Sync** when ready. rbxport must allow library writes.
@@ -33,7 +33,7 @@ A small **⇄** beside a linked playlist opens its details: green means synced, 
 
 ## Spotify setup (optional)
 
-Public SoundCloud playlists usually need no sign-in. Spotify requires your own developer app and an eligible account.
+Public SoundCloud playlists usually need no sign-in. For Spotify, the add-on first uses your connected account. If access is denied or no account is connected, it can read a public page only when that page proves the entire track list is present. Partial pages, embeds, rate limits and incomplete API responses never replace a saved snapshot. Large/private playlists may require your own developer app and an eligible owner/collaborator account.
 
 1. Create an app in the [Spotify developer dashboard](https://developer.spotify.com/dashboard) with Web API access.
 2. Register this exact redirect URI in the app settings and save it:
@@ -50,28 +50,35 @@ Start sign-in with **Connect**; opening the redirect address directly does not s
 
 ## Missing songs / “Check source”
 
+Expand the playlist and press **Retry missing** to retry held songs across all supported sources using the last checked source list. It reuses local files first. Cancelled jobs and explicit file/URL choices remain under your control. Source-specific failures are shown under **Resolve → Source attempts**: no results, wrong recording/length, low quality, blocked provider or a failed transfer. A song being on the web does not guarantee a qualifying downloadable source.
+
 **Recheck files** scans your existing collection using the saved source list, without downloads or playlist writes. Equivalent comma/slash artist credits now match automatically. **Check existing match** means a local candidate needs confirmation; Resolve offers the suggested tracks in a dropdown. Different mixes and lengths are kept separate.
 
 Click the playlist name, then **Resolve** beside a song to see the exact reason. The form opens directly below that song. You can supply an audio file, match an existing collection track by its rbxport track ID, provide another source URL, retry, or ignore it. Save your choice, then Sync again to process it.
 
-New downloads require a **320 kbps MP3 or lossless source** and produce **320 kbps MP3**. Track identity, length and full audio decoding are checked. Most YouTube audio is AAC/Opus and will fail this strict source requirement; re-encoding it would not restore quality. Manual URLs must pass the same checks. Existing collection files are reused without a new quality certification.
+In **gear → Audio standard**, choose:
+
+- **MP3 320 kbps / lossless** (default): copy qualifying MP3 audio or convert lossless input to 320 kbps MP3.
+- **Also allow AAC 256 kbps or higher**: preserve qualifying AAC as `.m4a`, without lossy re-encoding. MP3 still needs 320 kbps; lower-bitrate AAC and Opus remain blocked.
+
+Identity, mix/version, duration, sample rate, stereo and full decoding are checked on actual audio. Missing advertised bitrate is a reason to download a candidate for verification, not to reject it unseen. An incorrectly advertised, truncated or wrong file is rejected and another candidate is tried. Manual URLs use the same audio checks; Newgrounds audio-listen URLs are supported. Existing collection files are reused without a new quality certification.
 
 Only download audio you are entitled to acquire. Format checks cannot prove that a file was never upscaled previously.
 
 ## Soulseek fallback
 
 1. Open the **gear → Soulseek fallback**. Enter your existing Soulseek username and password, enable **Use as fallback on Sync**, and click **Save account**. If another Soulseek client is running, use a separate account to avoid disconnecting it.
-2. Expand a linked playlist and click **Find missing with Soulseek**. It rechecks local matches, then queues only unresolved recordings using the last checked source list. Ordinary Sync can also fall back to Soulseek when enabled.
-3. The add-on downloads and verifies the optional [Sockseek helper](https://github.com/fiso64/sockseek) automatically on first use. It searches for MP3 at 320 kbps or lossless files, requires matching identity and duration, and verifies actual audio before import. No separate app window is needed.
+2. Expand a linked playlist and click **Retry missing**. It checks local matches and web sources before using Soulseek for unresolved recordings. Ordinary Sync can also fall back to Soulseek when enabled.
+3. The add-on downloads and verifies the optional [Sockseek helper](https://github.com/fiso64/sockseek) automatically on first use. It retries cleaned artist/title queries and broader searches, accepts incomplete peer metadata for inspection, and checks the actual downloaded recording and audio against your selected standard. A rejected peer file can be followed by a different peer. No separate app window is needed.
 
-Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in, connection or setup failure stops the batch. Peer availability and queues affect completion time, and tracks without the required metadata may be filtered out. Do not expect every track to be available.
+Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in, connection or setup failure stops the batch. Peer availability and queues affect completion time. Each track has bounded search and transfer retries; do not expect every track to be available.
 
-Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. The add-on enables no incoming Soulseek listener and does not share your music folders. Live sign-in was verified with a search-only check. Peer downloads still need verification; the real helper audio tests used synthetic files. If v0.4.0 reported a connection failure immediately, update to v0.4.1: fractional track lengths could reject a search before sign-in.
+Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. Incoming peer connections are **off by default**. You can enable **Allow incoming peer connections** in Soulseek settings: it opens a temporary TCP listener on port 49998 while the helper runs, without sharing music or changing firewall/router rules. Use the [validation record](docs/validation.md) for the exact live tests and limitations.
 
 ## Stop or update
 
 - **Stop:** Start Menu → Playlist Sync → **Stop Playlist Sync**. Close rbxport and reopen it normally to disable its local automation connection.
-- **Update:** Stop the add-on, close rbxport, extract the new setup ZIP and run `Install-Playlist-Sync.cmd` again. Saved links and settings are preserved.
+- **Update:** Stop the add-on, close rbxport, extract the new setup ZIP and run `Install-Playlist-Sync.cmd` again. Saved links, settings and accounts are preserved in the separate data folder. Setup overwrites matching program files but does not yet remove obsolete files from older versions. Updates are manual; there is no automatic updater. After a successful install, the downloaded ZIP and extracted setup folder can be deleted.
 - **Can’t find the panel?** Close rbxport and reopen it through the Playlist Sync shortcut. Look below Tag List. Use **Reconnect** if the panel reports a disconnection.
 
 Settings and downloads are stored in `%LOCALAPPDATA%\rbxport-playlist-sync`. Use the gear to change the download folder. Keep this data folder, cookies and credentials private.

@@ -11,12 +11,20 @@ function similarity(a, b) {
 }
 
 function recordingTitle(title, artist) {
-  let text = normalize(title).replace(/\bfree (download|dl|dowload)\b/g, '').trim();
+  let text = normalize(title).replace(/\bfree (download|dl|dowload)\b/g, '').replace(/\boriginal (mix|version)\b/g,'').trim();
   const prefix = primaryArtist(artist);
   if (prefix && text.startsWith(`${prefix} `)) text = text.slice(prefix.length + 1);
   return text.replace(/\s+/g, ' ').trim();
 }
-function primaryArtist(artist = '') { return normalize(artist.split(/[,，]|\s+feat\.?\s+/i)[0]); }
+export function primaryArtist(artist = '') { return normalize(artist.split(/[,，]|\s+(?:feat\.?|ft\.?)\s+/i)[0]); }
+
+/** Search variants are discovery hints, never evidence that a downloaded recording matches. */
+export function searchVariants(track) {
+  const artist = String(track.artist || '').split(/[,，]|\s+(?:feat\.?|ft\.?)\s+/i)[0].trim();
+  const title = String(track.title || '').replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'').replace(/\s+feat\.?\s+.*/i,'').trim();
+  const core = title.replace(/\s*[-–—]\s*([^()]*\b(?:mix|remix|edit|version)\b.*)$/i,'').replace(/\s*\([^)]*\b(?:mix|remix|edit|version)\b[^)]*\)/gi,'').trim();
+  return [...new Map([{artist:track.artist,title:track.title},{artist,title},{artist,title:core}].filter(q=>q.artist && q.title).map(q=>[normalize(`${q.artist} ${q.title}`),q])).values()];
+}
 
 export function version(title = '') {
   const text = normalize(title);
@@ -78,17 +86,18 @@ export function playlistOrder(sourceIds, currentIds) {
     changed: [...front, ...remaining].some((id, index) => id !== currentIds[index]) };
 }
 
-export function candidateCheck(track, candidate) {
+export function candidateCheck(track, candidate, { allowUnknownDuration = false } = {}) {
   const length = durationCheck(track.duration, candidate.duration);
-  if (!length.ok) return length;
+  if (!length.ok && !(allowUnknownDuration && !Number(candidate.duration))) return length;
   if (candidate.is_live || candidate.live_status === 'is_live') return { ok: false, reason: 'Live stream' };
   if (/\b(preview|teaser|snippet|full album|full set|compilation|tutorial|reaction)\b/i.test(candidate.title || ''))
     return { ok: false, reason: 'Preview, compilation or non-song video' };
   if (version(track.title) !== version(candidate.title)) return { ok: false, reason: 'Candidate has a different mix/version' };
-  const titleWords = words(track.title);
+  // Featuring credits and upload labels are not part of the recording title.
+  const titleWords = words(recordingTitle(String(track.title || '').replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'').replace(/\s+feat\.?\s+.*/i,''),track.artist));
   const all = words(`${candidate.title} ${candidate.artist || ''} ${candidate.uploader || ''}`);
   const titleRatio = [...titleWords].filter(w => all.has(w)).length / Math.max(1, titleWords.size);
-  const artistWords = words(track.artist);
+  const artistWords = words(primaryArtist(track.artist));
   const artistRatio = [...artistWords].filter(w => all.has(w)).length / Math.max(1, artistWords.size);
   return { ok: titleRatio >= 0.9 && artistRatio >= 0.75,
     reason: titleRatio >= 0.9 && artistRatio >= 0.75 ? '' : 'Artist/title does not confidently match' };

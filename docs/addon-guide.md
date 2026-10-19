@@ -4,12 +4,12 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.4.1, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.5.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.4.1-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
+2. Download `playlist-sync-0.5.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -37,6 +37,8 @@ A first link creates a read-only preview automatically. Sync reuses existing col
 
 Resolved source tracks come first in source order. Extra local songs stay at the bottom in their original relative order. Source removals never delete files or local playlist entries. Unavailable source tracks have no placeholder in the local playlist; their status stays visible in the panel.
 
+**Retry missing** retries held tracks across SoundCloud originals/search, Newgrounds and YouTube, then optional Soulseek. Provider failures, incomplete metadata and a bad first candidate no longer end discovery. **Resolve → Source attempts** distinguishes unavailable providers, wrong recordings, rejected audio and empty searches.
+
 **Recheck files** scans your collection against the saved source list without downloading or changing the playlist. Equivalent comma/slash artist credits match automatically, while different mixes and durations still need review.
 
 **Check existing match** means a local candidate needs confirmation. **Check source** means acquisition needs attention. Resolve opens directly below that song, scrolls into view and shows the exact reason. Choose a suggested existing collection track, a file, another source URL, retry or ignore; save, then Sync to process the choice. A manual source does not bypass quality checks.
@@ -49,19 +51,19 @@ Automatic sync runs at the saved interval, normally hourly, while both processes
 
 Open **gear → Soulseek fallback**, enter an existing Soulseek account, enable **Use as fallback on Sync**, and click **Save account**. Saving does not test sign-in; the first search does. If another Soulseek client is running, use a separate account to avoid disconnecting it.
 
-Expand a playlist and click **Find missing with Soulseek**. The add-on rechecks existing files and uses the last checked source list to queue unresolved recordings one at a time. Ordinary Sync can also fall back after a web source fails. Explicit file/URL choices remain authoritative, and ambiguous confident local matches still require your choice. Held Soulseek failures wait for an explicit batch retry.
+Expand a playlist and click **Retry missing**. The add-on rechecks existing files and uses the last checked source list to queue unresolved recordings one at a time, checking web sources before Soulseek. Ordinary Sync can also fall back after a web source fails. Explicit file/URL choices remain authoritative, and ambiguous confident local matches still require your choice. Held Soulseek failures wait for an explicit batch retry.
 
-The optional [Sockseek 3.0.6 helper](https://github.com/fiso64/sockseek) downloads automatically on first use; both its archive and executable are checked against pinned SHA-256 hashes. No extra app window is opened. The helper searches for 320 kbps MP3 or lossless sources with matching identity and duration. The add-on then probes and fully decodes the actual file before the existing import pipeline processes it. Progress and Cancel remain in the small panel. An unavailable recording remains in review while the batch continues; account, connection or setup errors stop the batch. Peer queues and availability affect completion, and strict metadata requirements may exclude usable files.
+The optional [Sockseek 3.0.6 helper](https://github.com/fiso64/sockseek) downloads automatically on first use; both its archive and executable are checked against pinned SHA-256 hashes. No extra app window is opened. The helper searches alternate artist/title variants and broader queries. Missing remote bitrate/sample-rate fields are allowed during discovery; the downloaded audio must pass the selected quality standard and original recording/duration checks. The add-on then probes and fully decodes the actual file before the existing import pipeline processes it. Progress and Cancel remain in the small panel. An unavailable recording remains in review while the batch continues; account, connection or setup errors stop the batch. Peer queues and availability affect completion. A rejected peer file can be followed by a different peer. Searches and transfers have bounded retries and timeouts.
 
-Soulseek credentials use Windows CurrentUser DPAPI encryption and are excluded from API models, logs and process arguments. The helper requires a temporary local plaintext config while it runs; this is removed afterward and cleaned on startup after interruption. No incoming listener or music-folder sharing is enabled. The helper retains its AGPL-3.0 license and is downloaded separately, not bundled in the add-on ZIP. Real helper tests used synthetic audio in offline mock mode; live account transfers still need verification.
+Soulseek credentials use Windows CurrentUser DPAPI encryption and are excluded from API models, logs and process arguments. The helper requires a temporary local plaintext config while it runs; this is removed afterward and cleaned on startup after interruption. Incoming connections are off by default. The optional **Allow incoming peer connections** checkbox opens a temporary TCP 49998 listener while the helper runs; it does not change firewall/router settings or share music folders. The helper retains its AGPL-3.0 license and is downloaded separately, not bundled in the add-on ZIP. See the validation record for synthetic and live peer-transfer checks.
 
 ## Audio standard
 
-New downloads must become **320 kbps MP3**, using a source encoded as approximately 320 kbps MP3 or lossless audio. A qualifying MP3's audio is copied without re-encoding; lossless input is converted with FFmpeg.
+The default audio standard produces **320 kbps MP3** from a 320 kbps MP3 or lossless source. A qualifying MP3 is copied without re-encoding; lossless input is converted with FFmpeg. **gear → Audio standard → Also allow AAC 256 kbps or higher** additionally accepts qualifying AAC and preserves its audio as `.m4a` without lossy conversion. The choice is saved; strict MP3/lossless remains the default for new installations.
 
 Checks include stereo audio, at least 44.1 kHz, exactly one audio stream, full decoding and independent decoded duration. Duration tolerance is max(3 seconds, min(8 seconds, 2% of source duration)). Candidate discovery also compares artist/title/version and rejects previews, compilations and live streams.
 
-AAC, Opus and lower-bitrate MP3 sources do not become better by encoding them to 320 kbps, so they are rejected. YouTube sources often fail this strict requirement. A manual URL does not bypass duration or audio checks. Supply an original or purchased file when no qualifying source is available.
+AAC below the selected threshold, Opus and lower-bitrate MP3 do not become better by encoding them to 320 kbps, so they are rejected. YouTube sources often fail this strict requirement. A manual URL does not bypass duration or audio checks. Supply an original or purchased file when no qualifying source is available.
 
 Format checks cannot prove a recording's historical quality: previously upscaled files or lossy audio stored as FLAC can evade them. Existing collection files are reused and are not certified or replaced by this release. Only acquire audio you are entitled to download.
 
@@ -69,11 +71,11 @@ Format checks cannot prove a recording's historical quality: previously upscaled
 
 Public SoundCloud playlist links work through yt-dlp when the content is publicly available. An authorized original download may need your own exported cookies file; add it under Settings → Advanced. The add-on never exports browser cookies automatically.
 
-Spotify needs a personal application from the [developer dashboard](https://developer.spotify.com/dashboard). In Settings → Connect Spotify, enter its Client ID. Register this exact redirect URI: `http://127.0.0.1:43821/oauth/spotify`. Authentication uses PKCE and read-only playlist scopes; no client secret is needed. Development-mode/account restrictions apply; see [Spotify's migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide).
+Spotify can fall back to a public page only when its total count and pagination state prove the track list is complete. Truncated previews never replace a saved snapshot. For large/private playlists or pages without a complete snapshot, Spotify needs a personal application from the [developer dashboard](https://developer.spotify.com/dashboard). In Settings → Connect Spotify, enter its Client ID. Register this exact redirect URI: `http://127.0.0.1:43821/oauth/spotify`. Authentication uses PKCE and read-only playlist scopes; no client secret is needed. Development-mode/account restrictions apply; see [Spotify's migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide).
 
 Start sign-in with **Connect** in the panel. The redirect URI is an address to register in the Spotify developer dashboard, not a sign-in link to open directly. The panel remembers the Client ID and shows waiting/connected status. Pending sign-in attempts are encrypted for the current Windows account and survive service restarts for up to ten minutes. Expired, incomplete and cancelled callbacks show a useful result page; refreshing a completed callback does not exchange the code again. A previously lost attempt cannot be recovered retroactively: start a fresh Connect attempt.
 
-Spotify supplies metadata. Audio discovery uses YouTube through yt-dlp and still applies the strict source-quality requirement. Live Spotify account authentication is not yet verified because no test Client ID/account was supplied. Rate/access failures do not empty a local playlist.
+Spotify supplies metadata. Audio discovery uses the multi-source pipeline and selected audio standard. Live Spotify account authentication is not yet verified because no test Client ID/account was supplied. Rate/access failures do not empty a local playlist.
 
 ## How it integrates
 

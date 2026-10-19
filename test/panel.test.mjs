@@ -43,3 +43,9 @@ test('selecting another playlist refreshes visible rows even while an old resolu
   assert.match(root.innerHTML, /Different playlist song/);
   assert.doesNotMatch(root.innerHTML, /Fixture song 0|data-form="resolve"/);
 });
+
+test('source attempt details remain collapsed and escape provider text',async()=>{
+ const{root,initial,controller,click}=fixture();controller.update({...initial,selected:'a',selectionRevision:2,jobs:[{rowId:'a-0',attempts:[{source:'Fixture source',status:'quality',message:'Found <script> below quality'}]}]});await click('review','a-0');
+ assert.match(root.innerHTML,/<details class="ps-more"><summary>Source attempts/);assert.match(root.innerHTML,/Found &lt;script&gt; below quality/);assert.doesNotMatch(root.innerHTML,/Found <script>/);
+ assert.match(root.innerHTML,/Retry missing/);
+});

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-10-19
+
+- Search SoundCloud originals/search, Newgrounds and YouTube before the optional Soulseek fallback; continue after provider, candidate or format failures.
+- Inspect potential MP3/AAC files with incomplete remote metadata instead of discarding them before verification. Actual quality, identity and duration checks remain mandatory.
+- Add cleaned multi-artist queries, broader Soulseek search passes and alternative peers after a rejected file.
+- Replace the Soulseek-only batch action with Retry missing and expose source-attempt reasons inside Resolve.
+- Add an explicit AAC >= 256 kbps option with packet-preserving M4A output; strict MP3/lossless remains the default.
+- Read a public Spotify snapshot only when the page proves its track list is complete; reject truncated previews.
+- Make optional incoming peer connections explicit; no automatic firewall/router changes or music sharing.
+
 ## 0.4.1 — 2026-10-19
 
 - Fix fractional source durations causing Soulseek to reject its integer-only length tolerance before signing in.

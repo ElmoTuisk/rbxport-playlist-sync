@@ -99,3 +99,17 @@ test('duplicate memberships are preserved and native unsafe reorder is refused',
   assert.equal(run.status, 'failed'); assert.match(run.message, /repeated entries/);
   assert.deepEqual(f.target, before); assert.equal(f.calls.includes('reorder'), false);
 });
+
+test('Retry missing reopens held Soulseek jobs through web discovery while respecting cancelled jobs',async t=>{
+ const f=await fixture(t);f.remote(['new']);f.downloads.soulseek={enabled:true,async acquire(){throw Object.assign(Error('No peer source'),{code:'QUALITY_REVIEW'});}};
+ f.downloads.acquire=async(track,job)=>{if(job.sourcePath)return{file:'fixture'};throw Object.assign(Error('No web source'),{code:'QUALITY_REVIEW'});};
+ await f.engine.sync(f.link.id);assert.equal(f.store.all('jobs')[0].status,'review');
+ let retries=0;f.downloads.acquire=async()=>{retries++;return{file:'fixture'};};
+ const run=await f.engine.sync(f.link.id,{cached:true,retryMissing:true});assert.equal(run.ready,1);assert.equal(retries,1);
+});
+
+test('audio policy changes are explicit, persisted and reject unknown standards',async t=>{
+ const f=await fixture(t);assert.equal(f.engine.settings().quality,'strict-mp3-320');
+ f.engine.saveSettings({quality:'club-aac-256'});assert.equal(f.engine.settings().quality,'club-aac-256');
+ assert.throws(()=>f.engine.saveSettings({quality:'upscale-anything'}),/supported audio standard/);assert.equal(f.engine.settings().quality,'club-aac-256');
+});

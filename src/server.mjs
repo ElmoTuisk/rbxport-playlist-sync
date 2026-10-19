@@ -40,7 +40,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(),
     links: store.all('links').filter(l => demo || !hostInfo || l.libraryId === hostInfo.libraryId).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
     rows: Object.fromEntries(selected ? [[selected, engine.rows(selected)]] : []),
-    jobs: store.all('jobs').filter(j => j.linkId === engine.active), playlists: hostInfo?.playlists || [] });
+    jobs: store.all('jobs').filter(j => j.linkId === engine.active || j.linkId === selected), playlists: hostInfo?.playlists || [] });
   async function syncHost(open = false) {
     if (demo || shuttingDown || hostBusy) return;
     hostBusy = true;
@@ -50,11 +50,11 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       return await bridge.updateHost({ ...panelModel(), open }, css);
     } finally { hostBusy = false; }
   }
-  function startSync(id, preview = false, cached = false, useSoulseek = false) {
+  function startSync(id, preview = false, cached = false, useSoulseek = false, retryMissing = false) {
     if (engine.active) throw Error('Another sync is running');
     const link = store.get('links', id); if (!link) throw Error('Unknown playlist link');
     if (!cached && link.retryAt > Date.now()) throw Error('Provider rate limit: try after ' + new Date(link.retryAt).toLocaleString());
-    runningSync = engine.sync(id, { preview, cached, soulseek:useSoulseek });
+    runningSync = engine.sync(id, { preview, cached, soulseek:useSoulseek, retryMissing });
     void runningSync.catch(() => {}).finally(() => { runningSync = null; });
   }
   async function action(name, args = {}) {
@@ -67,6 +67,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       case 'sync': startSync(args.id); break;
       case 'recheck': startSync(args.id, true, true); break;
       case 'fallback': if (!soulseek.enabled) throw Error('Connect Soulseek in Settings first.'); startSync(args.id,false,true,true); break;
+      case 'retry-missing': startSync(args.id,false,true,false,true); break;
       case 'cancel': engine.cancel(); break;
       case 'automatic': engine.updateLink(args.id, { automatic: args.automatic === true }); break;
       case 'link': { const link = await engine.addLink(args); selected = link.id; selectionRevision++; hostInfo = await bridge.call('info'); startSync(link.id, true); break; }

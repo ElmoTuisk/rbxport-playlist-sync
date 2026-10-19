@@ -14,13 +14,14 @@ export class Engine {
   }
   settings() {
     return { ytdlp: 'yt-dlp', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', musicFolder: '', cookiesFile: '', autoAnalyse: true,
-      ...(this.store.get('settings', 'main') || {}), quality: 'strict-mp3-320' };
+      quality:'strict-mp3-320', ...(this.store.get('settings', 'main') || {}) };
   }
   saveSettings(value) {
     if (this.active) throw new Error('Wait for the current sync or cancel it before changing settings.');
     const current = this.settings();
     for (const key of ['ytdlp', 'ffmpeg', 'ffprobe', 'musicFolder', 'cookiesFile']) if (typeof value[key] === 'string') current[key] = value[key].trim();
     if (typeof value.autoAnalyse === 'boolean') current.autoAnalyse = value.autoAnalyse;
+    if(value.quality!==undefined){if(!['strict-mp3-320','club-aac-256'].includes(value.quality))throw Error('Choose a supported audio standard.');current.quality=value.quality;}
     if (current.musicFolder && !isAbsolute(current.musicFolder)) throw new Error('Music folder must be an absolute path');
     this.store.put('settings', 'main', current); this.changed(); return current;
   }
@@ -96,7 +97,7 @@ export class Engine {
     });
     this.changed(); return rows;
   }
-  async sync(id, { preview = false, cached = false, soulseek = false } = {}) {
+  async sync(id, { preview = false, cached = false, soulseek = false, retryMissing = false } = {}) {
     if (this.active) throw new Error('Another sync is running. Wait or cancel it.');
     if (soulseek && !this.downloads.soulseek?.enabled) throw new Error('Connect and enable Soulseek in Settings first.');
     const link = this.store.get('links', id); if (!link) throw new Error('Playlist link not found');
@@ -117,8 +118,8 @@ export class Engine {
           await this.bridge.call('add', { libraryId: link.libraryId, playlistId: link.playlistId, ids: [row.localId] });
           this.store.put('bindings', this.bindingKey(link.libraryId, row.track.key), { ...binding, localId: row.localId });
           this.store.put('rows', row.id, { ...row, status: 'ready', reason: 'Existing track linked' }); run.ready++;
-        } else if (row.status === 'missing' || (row.status === 'review' && this.downloads.soulseek?.enabled && !row.candidates?.some(c => c.certain))) {
-          const result = await this.processTrack(link, row, signal, { preferSoulseek: soulseek || row.status === 'review', retrySoulseek: soulseek }); result ? run.ready++ : run.attention++;
+        } else if (row.status === 'missing' || (retryMissing && row.status==='missing_file') || (row.status === 'review' && (this.downloads.soulseek?.enabled || retryMissing) && !row.candidates?.some(c => c.certain))) {
+          const result = await this.processTrack(link, row, signal, { preferSoulseek: soulseek, retrySoulseek: soulseek, retryAll:retryMissing }); result ? run.ready++ : run.attention++;
         } else if (row.status !== 'ignored') run.attention++;
         this.changed();
       }
@@ -148,12 +149,16 @@ export class Engine {
     }
     return run;
   }
-  async processTrack(link, row, signal, { preferSoulseek = false, retrySoulseek = false } = {}) {
+  async processTrack(link, row, signal, { preferSoulseek = false, retrySoulseek = false, retryAll = false } = {}) {
     const id = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
     let job = this.store.get('jobs', id) || { id, key: row.track.key, title: row.track.title, artist: row.track.artist, libraryId: link.libraryId, created: Date.now(), status: 'queued' };
     job = { ...job, linkId: link.id, rowId: row.id };
     const fallback = this.downloads.soulseek?.enabled;
-    const explicitSource = Boolean(job.overrideUrl || (job.sourcePath && job.acquisition !== 'soulseek'));
+    const explicitSource = Boolean(job.overrideUrl || job.acquisition==='manual' || (job.sourcePath && !job.acquisition));
+    if(retryAll && !job.file && job.status!=='cancelled') {
+      job={...job,status:'queued',acquisition:explicitSource?'manual':null,attempts:[]};
+      preferSoulseek=false;
+    }
     if (fallback && job.acquisition === 'soulseek' && !explicitSource) preferSoulseek = true;
     if (job.status === 'review' || job.status === 'cancelled') {
       if (fallback && !explicitSource && (job.status !== 'cancelled' || retrySoulseek) && (retrySoulseek || job.acquisition !== 'soulseek')) preferSoulseek = true;
@@ -163,15 +168,25 @@ export class Engine {
     const update = fields => { job = { ...job, ...fields, updated: Date.now() }; this.store.put('jobs', id, job); this.changed(); };
     try {
       if (!this.settings().musicFolder) throw new Error('Choose a music download folder in Settings.');
+      if(job.file)try{await access(job.file);}catch(error){if(error.code!=='ENOENT')throw error;update({file:null,localId:null,analysed:false});}
+      if(job.sourcePath && !explicitSource)try{await access(job.sourcePath);}catch(error){if(error.code!=='ENOENT')throw error;update({sourcePath:null,sourceReport:null});}
       const acquireFallback = async () => {
+        const webAttempts=job.attempts || []; let peerAttempts=[];
         update({acquisition:'soulseek',status:'searching',progress:'',message:'Trying Soulseek fallback'});
-        if (!job.sourcePath) update(await this.downloads.soulseek.acquire(row.track,job,update,signal));
-        return this.downloads.acquire(row.track,job,update,signal);
+        const peerUpdate=fields=>{if(fields.attempts)peerAttempts=fields.attempts;update({...fields,attempts:[...webAttempts,...peerAttempts].slice(-30)});};
+        try {
+          if (!job.sourcePath) peerUpdate(await this.downloads.soulseek.acquire(row.track,job,peerUpdate,signal));
+          const result=await this.downloads.acquire(row.track,job,fields=>{const {attempts,...rest}=fields;update(rest);},signal);
+          return {...result,attempts:[...webAttempts,...peerAttempts].slice(-30)};
+        } catch(error) {
+          if(error.code==='QUALITY_REVIEW' && webAttempts.some(a=>a.status==='quality'))error.message='Recordings were found on the web but did not meet your audio standard; Soulseek also found no verified alternative. See source attempts.';
+          throw error;
+        }
       };
       if (!job.file) {
         if (preferSoulseek && fallback && !explicitSource) update(await acquireFallback());
         else {
-          try { update(await this.downloads.acquire(row.track,job,update,signal)); }
+          try { if(!explicitSource)update({acquisition:'web'});update(await this.downloads.acquire(row.track,job,update,signal)); }
           catch (error) {
             if (!fallback || explicitSource || signal.aborted) throw error;
             // Do not reuse a rejected web source as if it came from Soulseek.
@@ -216,11 +231,11 @@ export class Engine {
     } else if (['retry', 'source', 'file'].includes(value.action)) {
       const jobId = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
       const job = this.store.get('jobs', jobId) || { id: jobId, key: row.track.key, title: row.track.title, artist: row.track.artist, libraryId: link.libraryId, linkId: link.id, rowId: id, created: Date.now() };
-      if (value.action === 'source') { job.overrideUrl = mediaUrl(value.url); job.sourcePath = null; job.file = null; }
+      if (value.action === 'source') { job.overrideUrl = mediaUrl(value.url); job.sourcePath = null; job.file = null; job.acquisition='manual'; }
       if (value.action === 'file') {
         if (!isAbsolute(value.path || '')) throw new Error('Supply an absolute audio-file path.');
         if (!(await stat(value.path)).isFile()) throw new Error('Not an audio file');
-        job.sourcePath = value.path; job.file = null;
+        job.sourcePath = value.path; job.file = null; job.overrideUrl=null; job.acquisition='manual';
       }
       this.store.put('jobs', jobId, { ...job, status: 'queued', message: 'Ready to retry on next sync' });
       // Explicit source/file selection resolves identity uncertainty; quality gates still apply.

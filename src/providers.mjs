@@ -21,6 +21,7 @@ export function playlistReference(raw) {
 export function mediaUrl(raw) {
   const url = new URL(raw);
   if (url.protocol !== 'https:' || url.username || url.password || url.port) throw new Error('Invalid media URL.');
+  if (['www.newgrounds.com','newgrounds.com'].includes(url.hostname) && /^\/audio\/listen\/\d+\/?$/.test(url.pathname)) return url.href;
   if (!['www.youtube.com', 'youtube.com', 'music.youtube.com', 'youtu.be', 'soundcloud.com', 'www.soundcloud.com'].includes(url.hostname))
     throw new Error('Only YouTube and SoundCloud media URLs are supported.');
   return url.href;
@@ -157,14 +158,14 @@ export class Spotify {
     const url = new URL(path, 'https://api.spotify.com');
     if (url.origin !== 'https://api.spotify.com' || !url.pathname.startsWith('/v1/')) throw new Error('Invalid Spotify API pagination URL');
     const response = await fetch(url, { headers: { Authorization: `Bearer ${await this.access()}` }, signal: AbortSignal.timeout(30000) });
-    if (response.status === 403) throw new Error('Spotify denied playlist access. You must own or collaborate on it, and your account must be allowed by the app.');
+    if (response.status === 403) throw Object.assign(new Error('Spotify denied playlist access. You must own or collaborate on it, and your account must be allowed by the app.'),{httpStatus:403});
     if (response.status === 401) throw new Error('Spotify session expired. Reconnect in Settings.');
     if (response.status === 429) {
       const seconds = Math.max(60, Number(response.headers.get('retry-after')) || 3600);
       const error = new Error(`Spotify rate/quota limit. Paused for at least ${Math.ceil(seconds / 60)} minutes.`);
       error.retryAt = Date.now() + seconds * 1000; throw error;
     }
-    if (!response.ok) throw new Error(`Spotify request failed (${response.status}); previous snapshot retained.`);
+    if (!response.ok) throw Object.assign(new Error(`Spotify request failed (${response.status}); previous snapshot retained.`),{httpStatus:response.status});
     return response.json();
   }
   async playlist(ref) {
@@ -193,8 +194,21 @@ export class Spotify {
 
 export class Providers {
   constructor(spotify, tools) { this.spotify = spotify; this.tools = tools; }
+  async publicSpotify(ref, signal) {
+    const response=await fetch(`https://open.spotify.com/playlist/${encodeURIComponent(ref.id)}`,{signal:AbortSignal.any([signal,AbortSignal.timeout(30000)].filter(Boolean))});
+    if(!response.ok)throw Error('Spotify public page is unavailable. Connect an eligible account or retry later.');
+    let html='',bytes=0;const decoder=new TextDecoder();
+    for await(const chunk of response.body){bytes+=chunk.length;if(bytes>4*1024*1024)throw Error('Spotify public page exceeded the metadata limit.');html+=decoder.decode(chunk,{stream:true});}html+=decoder.decode();
+    return parsePublicSpotify(html,ref.id);
+  }
   async playlist(ref, signal) {
-    if (ref.provider === 'spotify') return this.spotify.playlist(ref);
+    if (ref.provider === 'spotify') {
+      try{return await this.spotify.playlist(ref);}
+      catch(error){
+        if(signal?.aborted || error.retryAt || !([403,404].includes(error.httpStatus)||/denied playlist access|Connect Spotify|session expired/i.test(error.message)))throw error;
+        return this.publicSpotify(ref,signal);
+      }
+    }
     const raw = await this.tools.metadata(ref.url, { playlist: true, signal });
     if (!Array.isArray(raw.entries) || raw.entries.some(e => !e)) throw new Error('Incomplete SoundCloud playlist; previous snapshot retained.');
     const tracks = raw.entries.map(e => {
@@ -205,4 +219,21 @@ export class Providers {
     });
     return { name: raw.title || 'SoundCloud playlist', revision: createHash('sha256').update(JSON.stringify(tracks)).digest('hex'), tracks };
   }
+}
+
+/** Use only a provably complete server-rendered public snapshot; never an embed preview. */
+export function parsePublicSpotify(html,id) {
+  const encoded=/<script\b[^>]*\bid=["']initialState["'][^>]*>([^<]+)<\/script>/.exec(html)?.[1];
+  let entity;try{entity=JSON.parse(Buffer.from(encoded||'','base64').toString('utf8')).entities?.items?.[`spotify:playlist:${id}`];}catch{}
+  const content=entity?.content;
+  if(!entity?.name || !Array.isArray(content?.items) || !Number.isInteger(content.totalCount) || content.items.length!==content.totalCount || !content.pagingInfo || !Object.hasOwn(content.pagingInfo,'nextOffset') || content.pagingInfo.nextOffset!==null)
+    throw Error('Spotify only exposed a partial public playlist. Previous snapshot retained. Connect an eligible owner/collaborator account for this playlist.');
+  const tracks=content.items.map((entry,index)=>{
+    const t=entry.itemV2?.data,trackId=/^spotify:track:([A-Za-z0-9]+)$/.exec(t?.uri||'')?.[1];
+    if(!trackId || t.__typename!=='Track')return{key:`unavailable:public:${index}`,title:t?.name||'Unavailable Spotify item',artist:'',duration:0,unavailable:true};
+    const artist=t.artists?.items?.map(a=>a.profile?.name).filter(Boolean).join(', '),duration=Number(t.duration?.totalMilliseconds)/1000;
+    if(!t.name || !artist || !Number.isFinite(duration)||duration<=0)throw Error('Spotify public track metadata is incomplete; previous snapshot retained.');
+    return{key:`spotify:${trackId}`,provider:'spotify',id:trackId,title:t.name,artist,duration,url:`https://open.spotify.com/track/${trackId}`};
+  });
+  return{name:entity.name,revision:createHash('sha256').update(JSON.stringify(tracks)).digest('hex'),tracks,metadataSource:'public-page'};
 }

@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-49 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+68 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,18 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Downloader revision 0.5.0
+
+The regression suite covers cross-provider failover, a failed first file followed by a valid second file, provisional metadata, cancellation, complete-vs-partial public Spotify pages, original/featured title variants, alternate and stalled Soulseek peers, saved audio policies and escaped source-attempt details. Real FFmpeg tests reject low AAC and 256 kbps MP3; an allowed AAC source is copied to M4A with exactly matching compressed audio packet hashes.
+
+The real pinned Sockseek helper also acquired synthetic 320 kbps MP3 with remote tag/quality metadata intentionally omitted, followed by actual source/output verification. This exercises the missing-peer-metadata case independently of stubbed process tests.
+
+A live Geometry Dash example was acquired from Soulseek: a 256 kbps MP3 candidate was rejected, then a lossless FLAC candidate passed identity, duration, stereo/sample-rate and full decoding checks. Its published test output was verified as 320 kbps MP3 at 44.1 kHz stereo, 191.47 seconds. The test used a private staging folder and did not import or change playlist entries. This establishes one successful peer transfer, not full-playlist coverage. The updated native panel was checked in the running app: version 10, masked account field, bounded viewport and reachable Save button.
+
+Live web searches found the two examined Geometry Dash recordings on SoundCloud/YouTube but offered audio below the selected club thresholds; Newgrounds returned HTTP 403. A complete four-track public Spotify snapshot was read and validated earlier; later public requests were unavailable, so acquisition tests used that saved complete snapshot. Public-page layouts and access can change. These failures remain explicit and are not bypassed or described as a song being absent from the web.
+
+The records below document earlier versions and their integration limits at the time.
 
 ## Soulseek sign-in fix
 

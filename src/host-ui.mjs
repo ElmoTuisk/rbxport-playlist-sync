@@ -11,7 +11,7 @@ export function fitPopover(viewport, anchor, panel, margin = 12) {
 
 export function installHostUi(model, mountPanel, css, fitPopover) {
   const key = '__rbxportPlaylistSync';
-  if (window[key] && window[key].version !== 9) window[key].dispose();
+  if (window[key] && window[key].version !== 10) window[key].dispose();
   if (window[key]) { window[key].update(model); return { installed: true }; }
   const sheet = new CSSStyleSheet(); sheet.replaceSync(css); document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   let current = model, timer = null, layoutFrame = null, stopped = false;
@@ -112,7 +112,7 @@ export function installHostUi(model, mountPanel, css, fitPopover) {
     for (const p of pending.values()) { clearTimeout(p.timeout); p.reject(Error('Playlist Sync closed')); } pending.clear();
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter(s => s !== sheet); delete window[key];
   }
-  window[key] = { version: 9, update(value) { current = value; panel.update(value); decorate(); if (value.open) open(); }, open, dispose,
+  window[key] = { version: 10, update(value) { current = value; panel.update(value); decorate(); if (value.open) open(); }, open, dispose,
     reply(id, result, error) { const p = pending.get(id); if (!p) return; clearTimeout(p.timeout); pending.delete(id); error ? p.reject(Error(error)) : p.resolve(result); } };
   decorate(); if (model.open) open();
   return { installed: true, visiblePlaylistBadges: document.querySelectorAll('[data-playlist-sync-badge]').length };
