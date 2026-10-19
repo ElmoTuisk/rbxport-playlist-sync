@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-10-19
+
+- Mark songs with found lower-quality audio directly in the track list and All tracks, including codec, bitrate and whether quality is reported or verified.
+- Use Review quality for unapproved offers; distinguish an ongoing source search from a completed lower-only result and an approved download. Keep the separate per-song confirmation.
+
 ## 0.7.0 — 2026-10-19
 
 - Offer found lower-quality audio with a separate per-song Confirm & download step showing codec, bitrate and source. The global audio standard is unchanged.

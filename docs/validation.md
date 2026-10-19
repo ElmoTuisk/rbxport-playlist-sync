@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-95 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+97 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,10 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Visible quality status 0.7.1
+
+Two new renderer regressions cover a lower-only result with codec/bitrate before opening its form, Review quality versus ordinary Resolve, the All tracks status, ongoing searches, saved approvals, verified unknown-bitrate files and already imported lower-quality audio. All 97 tests passed on Windows with no skips. The acquisition and confirmation rules are unchanged.
 
 ## Per-song lower-quality choices 0.7.0
 

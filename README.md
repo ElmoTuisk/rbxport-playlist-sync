@@ -4,14 +4,14 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.7.0 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.7.1 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.7.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.7.1-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -61,7 +61,7 @@ Tied candidates and missing files remain for individual review. A unique eligibl
 
 ### Choose lower-quality audio for one song
 
-1. Open **Resolve**. If a matching lower-quality source was found, choose its codec/bitrate under **Lower-quality audio available** and click **Review lower-quality file**.
+1. Songs with found lower-quality sources show **Only lower-quality audio found** with codec/bitrate directly in the list. Click **Review quality**, choose a format under **Lower-quality audio available**, then **Review lower-quality file**. During an ongoing search the label says **Checking sources · lower-quality audio found** instead. Reported quality stays distinct from a verified file.
 2. Check the source and quality, then click **Confirm & download**. This approves only that song/source/format and starts its download; it does not lower the global audio standard or retry the rest of the playlist.
 3. To supply another source, select **Use a source URL**, paste it and click **Check source & download**. A source below your normal standard waits for the same separate confirmation. A normal-quality source starts processing immediately. Selected local audio files use the same quality confirmation when needed.
 
