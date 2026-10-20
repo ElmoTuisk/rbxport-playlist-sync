@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 — 2026-10-20
+
+- Embed exact Spotify album/SoundCloud track artwork automatically in new downloads, preserve existing attached covers as fallback, retain album tags and keep missing artwork from blocking verified audio. Bound image requests/cache and normalize JPEG cover attachments for MP3, M4A and approved FLAC playback output.
+- Resolve covers for saved Spotify snapshots through exact-track oEmbed lookup. Preserve MP3/AAC compressed packets and approved Opus playback PCM; do not rewrite existing collection files.
+- Fix bracketed `(with …)`/`ft.` credits rejecting the same recording. Check ten initial web results, keep version names in the first query and lazily try distinct alternate names while deduplicating results and preserving recording/quality checks.
+- Preserve remix annotations after inline featured credits so a different remixer is not accepted accidentally. Continue later songs after a temporary Soulseek connection failure, with a one-minute peer-search backoff; authentication/setup errors still stop the batch.
+- Document the playlist test matrix and completion metrics, distinguishing new acquisition, existing-file reuse, pending work and quality holds.
+
 ## 0.9.0 — 2026-10-20
 
 - Add playlist-level Accept lower quality… with a reviewed song/codec/bitrate preview and one Accept N & download action. Choose the highest reported bitrate from current eligible options, pin per-song source/format approvals, and keep global standards unchanged.

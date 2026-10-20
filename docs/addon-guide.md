@@ -4,12 +4,16 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.9.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.10.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+
+New downloads include album artwork automatically: exact Spotify album images or SoundCloud track artwork, with an existing attached cover as fallback. Missing/broken artwork does not discard verified audio. MP3/AAC audio stays packet-preserved; no existing collection files are rewritten. Provider image downloads are limited to known HTTPS CDNs, 5 MiB per image and 15 seconds, with at most 8 MiB/32 entries cached. Images are normalized to a compatible JPEG attachment of at most 1200 pixels per side. See the README for the full behavior.
+
+Source discovery checks ten initial results per SoundCloud/YouTube query, retains version names in its first query and lazily tries distinct alternate names. Bracketed featuring/with credits are normalized for discovery and identity checks; mix, duration and verified audio requirements remain in place. A library-only preview, an unprocessed queue item, a discovery match and a verified import are separate test outcomes.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.9.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
+2. Download `playlist-sync-0.10.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -67,7 +71,7 @@ Open **gear → Soulseek fallback**, enter an existing Soulseek account, enable 
 
 Expand a playlist and click **Retry missing**. The add-on rechecks existing files and uses the last checked source list to queue unresolved recordings one at a time, checking web sources before Soulseek. Ordinary Sync can also fall back after a web source fails. Explicit file/URL choices remain authoritative, and ambiguous confident local matches still require your choice. Held Soulseek failures wait for an explicit batch retry.
 
-The optional [Sockseek 3.0.6 helper](https://github.com/fiso64/sockseek) downloads automatically on first use; both its archive and executable are checked against pinned SHA-256 hashes. No extra app window is opened. The helper searches alternate artist/title variants and broader queries. Missing remote bitrate/sample-rate fields are allowed during discovery; the downloaded audio must pass the selected quality standard and original recording/duration checks. The add-on then probes and fully decodes the actual file before the existing import pipeline processes it. Progress and Cancel remain in the small panel. An unavailable recording remains in review while the batch continues; account, connection or setup errors stop the batch. Peer queues and availability affect completion. A rejected peer file can be followed by a different peer. Searches and transfers have bounded retries and timeouts.
+The optional [Sockseek 3.0.6 helper](https://github.com/fiso64/sockseek) downloads automatically on first use; both its archive and executable are checked against pinned SHA-256 hashes. No extra app window is opened. The helper searches alternate artist/title variants and broader queries. Missing remote bitrate/sample-rate fields are allowed during discovery; the downloaded audio must pass the selected quality standard and original recording/duration checks. The add-on then probes and fully decodes the actual file before the existing import pipeline processes it. Progress and Cancel remain in the small panel. An unavailable recording remains in review while the batch continues; account or setup errors stop the batch. Temporary connection failures back off peer searches for 60 seconds while later songs continue. Peer queues and availability affect completion. A rejected peer file can be followed by a different peer. Searches and transfers have bounded retries and timeouts.
 
 Soulseek credentials use Windows CurrentUser DPAPI encryption and are excluded from API models, logs and process arguments. The helper requires a temporary local plaintext config while it runs; this is removed afterward and cleaned on startup after interruption. Incoming connections are off by default. The optional **Allow incoming peer connections** checkbox opens a temporary TCP 49998 listener while the helper runs; it does not change firewall/router settings or share music folders. The helper retains its AGPL-3.0 license and is downloaded separately, not bundled in the add-on ZIP. See the validation record for synthetic and live peer-transfer checks.
 

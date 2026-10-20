@@ -4,7 +4,9 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.9.0 · Tested with rbxport 1.9.0**
+Reliability is tested across different playlist types, with downloads, existing-file reuse and quality holds counted separately. See the [playlist testing criteria](docs/playlist-testing.md). The roughly 95% automatic-completion target has not yet been established across a complete test set.
+
+**Windows x64 · Experimental v0.10.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
@@ -21,7 +23,7 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.9.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -81,7 +83,17 @@ Ordinary lower-quality SoundCloud/YouTube streams still require the separate con
 
 ## Missing songs / “Check source”
 
+Searches check ten initial SoundCloud/YouTube results and try distinct alternate names if needed. The first query retains remix/version labels; a broader query is only a discovery hint. Bracketed Spotify `(with …)`/featured credits do not have to appear in an upload title. Recording identity, version, duration and actual file checks still apply to every candidate. A familiar song can still lack an accessible file at your chosen quality; converting a lower stream to 320 kbps does not qualify it.
+
+A temporary Soulseek connection error leaves that song for retry and lets the batch continue with other songs. Peer searches back off for one minute after a connection failure. Authentication/setup errors still stop with a clear message so the queue does not repeatedly use a broken account/helper.
+
 Linking initially checks the source and your collection; it does not download music. The status explicitly says **Click Sync to search and download**. Available original-stream choices appear immediately, labelled **Lower-quality original stream available** until a complete search has run. **Sync** searches other sources at your usual audio standard.
+
+## Embedded album covers
+
+New downloads automatically embed the exact Spotify track's album cover or the SoundCloud track artwork. Album names are retained when supplied by the playlist. Old saved Spotify snapshots can resolve the exact track's cover with the public [Spotify oEmbed API](https://developer.spotify.com/documentation/embeds/reference/oembed); another Spotify connection is not required for that lookup.
+
+If provider artwork is unavailable, the add-on preserves an existing attached cover in the downloaded file. It does not substitute an arbitrary YouTube video frame. MP3 and AAC audio packets are copied unchanged; artwork also works in the approved FLAC playback output. Image retrieval has size/time limits and a bounded cache. A missing or broken image keeps the verified audio and records **cover unavailable**. Existing collection files are not rewritten; this applies to newly published downloads.
 
 ### Accept lower-quality songs in bulk
 
@@ -126,7 +138,7 @@ Only download audio you are entitled to acquire. Format checks cannot prove that
 2. Expand a linked playlist and click **Retry missing**. It checks local matches and web sources before using Soulseek for unresolved recordings. Ordinary Sync can also fall back to Soulseek when enabled.
 3. The add-on downloads and verifies the optional [Sockseek helper](https://github.com/fiso64/sockseek) automatically on first use. It retries cleaned artist/title queries and broader searches, accepts incomplete peer metadata for inspection, and checks the actual downloaded recording and audio against your selected standard. A rejected peer file can be followed by a different peer. No separate app window is needed.
 
-Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in, connection or setup failure stops the batch. Peer availability and queues affect completion time. Each track has bounded search and transfer retries; do not expect every track to be available.
+Progress and Cancel stay in the existing panel. Unavailable tracks remain unresolved; click the batch action to retry them later. A sign-in or setup failure stops the batch. Temporary connection failures back off peer searches for one minute while other songs continue. Peer availability and queues affect completion time. Each track has bounded search and transfer retries; do not expect every track to be available.
 
 Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. Incoming peer connections are **off by default**. You can enable **Allow incoming peer connections** in Soulseek settings: it opens a temporary TCP listener on port 49998 while the helper runs, without sharing music or changing firewall/router rules. Use the [validation record](docs/validation.md) for the exact live tests and limitations.
 

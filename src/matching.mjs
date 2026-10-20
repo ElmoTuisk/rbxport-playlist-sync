@@ -10,8 +10,16 @@ function similarity(a, b) {
   return 2 * [...x].filter(w => y.has(w)).length / (x.size + y.size);
 }
 
+function withoutCredits(title) {
+  return String(title || '').replace(/\s*[([](?:feat\.?|ft\.?|with)\s+[^)\]]+[)\]]/gi,'').replace(/\s+(?:feat\.?|ft\.?)\s+(.+)$/i,(_,credit)=>{
+    // A trailing remix/edit annotation belongs to the recording, not the guest
+    // artist. Removing all text after "ft." used to erase the remixer's name.
+    const boundary=credit.search(/\s*[(\[]|\s+[-–—]\s+/);
+    return boundary<0?'':' '+credit.slice(boundary).trim();
+  }).trim();
+}
 function recordingTitle(title, artist) {
-  const withoutFeatures=title.replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'');
+  const withoutFeatures=withoutCredits(title);
   let text = normalize(withoutFeatures).replace(/\bfree (download|dl|dowload)\b/g, '').replace(/\boriginal (mix|version)\b/g,'').trim();
   const prefix = primaryArtist(artist);
   if (prefix && text.startsWith(`${prefix} `)) text = text.slice(prefix.length + 1);
@@ -22,7 +30,7 @@ export function primaryArtist(artist = '') { return normalize(artist.split(/[,�
 /** Search variants are discovery hints, never evidence that a downloaded recording matches. */
 export function searchVariants(track) {
   const artist = String(track.artist || '').split(/[,，]|\s+(?:feat\.?|ft\.?)\s+/i)[0].trim();
-  const title = String(track.title || '').replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'').replace(/\s+feat\.?\s+.*/i,'').trim();
+  const title = withoutCredits(track.title);
   const core = title.replace(/\s*[-–—]\s*([^()]*\b(?:mix|remix|edit|version)\b.*)$/i,'').replace(/\s*\([^)]*\b(?:mix|remix|edit|version)\b[^)]*\)/gi,'').trim();
   return [...new Map([{artist:track.artist,title:track.title},{artist,title},{artist,title:core}].filter(q=>q.artist && q.title).map(q=>[normalize(`${q.artist} ${q.title}`),q])).values()];
 }
@@ -124,7 +132,7 @@ export function candidateCheck(track, candidate, { allowUnknownDuration = false 
     return { ok: false, reason: 'Preview, compilation or non-song video' };
   if (version(track.title) !== version(candidate.title)) return { ok: false, reason: 'Candidate has a different mix/version' };
   // Featuring credits and upload labels are not part of the recording title.
-  const titleWords = words(recordingTitle(String(track.title || '').replace(/\s*[([](?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi,'').replace(/\s+feat\.?\s+.*/i,''),track.artist));
+  const titleWords = words(recordingTitle(track.title,track.artist));
   const all = words(`${candidate.title} ${candidate.artist || ''} ${candidate.uploader || ''}`);
   const titleRatio = [...titleWords].filter(w => all.has(w)).length / Math.max(1, titleWords.size);
   const artistWords = words(primaryArtist(track.artist));

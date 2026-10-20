@@ -2,6 +2,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { run } from './process.mjs';
+import {albumArtwork} from './artwork.mjs';
 
 function authError(kind, message) { return Object.assign(new Error(message), { authKind: kind }); }
 
@@ -181,6 +182,7 @@ export class Spotify {
           key: `spotify:${track.id}`, provider: 'spotify', id: track.id, title: track.name,
           artist: track.artists?.map(a => a.name).join(', ') || '', duration: track.duration_ms / 1000,
           isrc: track.external_ids?.isrc || '', url: `https://open.spotify.com/track/${track.id}`, explicit: track.explicit,
+          album:track.album?.name || '',artworkUrl:albumArtwork(track.album?.images),
         } : { key: `unavailable:${pages}:${index}`, title: track?.name || 'Unavailable or local Spotify item', artist: '', unavailable: true, duration: 0 });
       }
       next = page.next;
@@ -217,7 +219,7 @@ export class Providers {
       if (!e.title || !e.duration) throw new Error('SoundCloud returned incomplete track metadata; previous snapshot retained.');
       const track = { key: `soundcloud:${e.id}`, id: String(e.id), provider: 'soundcloud', title: e.track || e.title,
         artist: e.artist || e.uploader || '', duration: e.duration || 0,
-        url: mediaUrl(e.webpage_url || e.url), unavailable: e.availability === 'private' || !e.id };
+        url: mediaUrl(e.webpage_url || e.url), artworkUrl:albumArtwork([{url:e.thumbnail},...(e.thumbnails || [])]),album:e.album || '',unavailable: e.availability === 'private' || !e.id };
       const audio=this.tools.sourceInfo?.(track,e);if(audio)track.sourceAudio=audio;
       return track;
     });
@@ -237,7 +239,7 @@ export function parsePublicSpotify(html,id) {
     if(!trackId || t.__typename!=='Track')return{key:`unavailable:public:${index}`,title:t?.name||'Unavailable Spotify item',artist:'',duration:0,unavailable:true};
     const artist=t.artists?.items?.map(a=>a.profile?.name).filter(Boolean).join(', '),duration=Number(t.duration?.totalMilliseconds)/1000;
     if(!t.name || !artist || !Number.isFinite(duration)||duration<=0)throw Error('Spotify public track metadata is incomplete; previous snapshot retained.');
-    return{key:`spotify:${trackId}`,provider:'spotify',id:trackId,title:t.name,artist,duration,url:`https://open.spotify.com/track/${trackId}`};
+    return{key:`spotify:${trackId}`,provider:'spotify',id:trackId,title:t.name,artist,duration,url:`https://open.spotify.com/track/${trackId}`,album:t.albumOfTrack?.name || '',artworkUrl:albumArtwork(t.albumOfTrack?.coverArt?.sources)};
   });
   return{name:entity.name,revision:createHash('sha256').update(JSON.stringify(tracks)).digest('hex'),tracks,metadataSource:'public-page'};
 }

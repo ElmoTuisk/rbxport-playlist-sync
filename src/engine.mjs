@@ -244,14 +244,14 @@ export class Engine {
         update({ status: 'analysing', message: 'Analyzing new track' });
         await this.bridge.call('analyse', { libraryId: link.libraryId, id: local.id }); update({ analysed: true });
       }
-      update({ status: 'ready', message: 'Ready in rbxport', progress: '' });
+      update({ status: 'ready', message: job.artwork?.status==='unavailable'?'Ready in rbxport · cover unavailable':'Ready in rbxport', progress: '' });
       const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard),officialOriginal:Boolean(job.quality.officialOriginal)}:undefined;
       this.store.put('rows', row.id, { ...row, localId: local.id, status: 'ready',audioQuality, reason: audioQuality?.belowStandard?`Ready · ${audioQuality.codec.toUpperCase()} ${Math.round(audioQuality.bitrate || 0)} kbps · quality exception`:'Downloaded, validated and imported' }); return true;
     } catch (error) {
       const status = signal.aborted ? 'cancelled' : ['QUALITY_REVIEW','LOWER_CONFIRM'].includes(error.code) || /Quality check/.test(error.message) ? 'review' : 'failed';
       update({ status, message: error.message });
       this.store.put('rows', row.id, { ...row, status, reviewKind:'source', reason: error.message });
-      if (['SOULSEEK_AUTH','SOULSEEK_CONNECTION','SOULSEEK_SETUP'].includes(error.code)) throw error;
+      if (['SOULSEEK_AUTH','SOULSEEK_SETUP'].includes(error.code)) throw error;
       return false;
     }
   }

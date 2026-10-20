@@ -13,6 +13,28 @@ const ffmpeg = process.env.FFMPEG || (existsSync(join(tools, 'ffmpeg.exe')) ? jo
 const ffprobe = process.env.FFPROBE || (existsSync(join(tools, 'ffprobe.exe')) ? join(tools, 'ffprobe.exe') : 'ffprobe');
 const available = spawnSync(ffmpeg, ['-version'], { windowsHide: true }).status === 0 && spawnSync(ffprobe, ['-version'], { windowsHide: true }).status === 0;
 
+test('real provider covers embed in MP3, M4A and approved FLAC while audio remains unchanged', {skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-art-audio-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const png=join(dir,'cover.png');await run(ffmpeg,['-v','error','-f','lavfi','-i','color=c=red:s=64x64','-frames:v','1',png]);const image=await readFile(png);
+ const d=new Downloads(()=>({ffmpeg,ffprobe,musicFolder:dir,quality:'club-aac-256'}),{fetcher:async()=>new Response(image)});
+ for(const [codec,encoder,ext,rate]of [['mp3','libmp3lame','mp3','320k'],['aac','aac','m4a','288k'],['opus','libopus','opus','96k']]){
+  const source=join(dir,`source.${ext}`);await run(ffmpeg,['-v','error','-f','lavfi','-i','anoisesrc=color=white:duration=10:sample_rate=48000:seed=1[a];anoisesrc=color=white:duration=10:sample_rate=48000:seed=2[b];[a][b]amerge=inputs=2','-c:a',encoder,'-b:a',rate,source]);
+  const track={key:'art:'+codec,title:'Artwork fixture',artist:'Fixture',album:'Fixture album',duration:10,artworkUrl:'https://i.scdn.co/image/fixture'};
+  const result=await d.acquire(track,{id:'art-'+codec,sourcePath:source,...(codec==='opus'?{qualityApproval:{codec:'opus',bitrate:0}}:{})},()=>{},new AbortController().signal);
+  assert.equal(result.artwork.status,'embedded');const probe=await d.probe(result.file);assert(probe.streams.some(v=>v.codec_type==='video'&&v.codec_name==='mjpeg'&&v.disposition?.attached_pic));assert.equal(probe.format.tags.album,'Fixture album');
+  const hash=path=>run(ffmpeg,['-v','error','-i',path,'-map','0:a:0','-c:a',codec==='opus'?'pcm_s24le':'copy','-f','hash','-hash','sha256','-']);assert.equal(await hash(source),await hash(result.file));
+ }
+});
+test('existing embedded artwork survives source publication and missing/broken provider art never loses verified audio',{skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-cover-fallback-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const pic=join(dir,'cover.jpg'),source=join(dir,'source.mp3');await run(ffmpeg,['-v','error','-f','lavfi','-i','color=c=blue:s=64x64','-frames:v','1',pic]);
+ await run(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=10','-i',pic,'-map','0:a','-map','1:v','-disposition:v','attached_pic','-c:v','copy','-ar','44100','-ac','2','-c:a','libmp3lame','-b:a','320k',source]);
+ const d=new Downloads(()=>({ffmpeg,ffprobe,musicFolder:dir}),{fetcher:async()=>{throw Error('Provider offline');}}),track={key:'cover:existing',provider:'spotify',id:'abc',title:'Fixture',artist:'Fixture',duration:10};
+ const output=await d.acquire(track,{id:'existing',sourcePath:source},()=>{},new AbortController().signal);assert.equal(output.artwork.source,'existing-cover');assert.equal(output.artwork.status,'embedded');
+ const plain=join(dir,'plain.mp3');await run(ffmpeg,['-v','error','-i',source,'-map','0:a:0','-c:a','copy',plain]);
+ const missing=await d.acquire({...track,key:'cover:missing'},{id:'missing',sourcePath:plain},()=>{},new AbortController().signal);assert.equal(missing.artwork.status,'unavailable');assert.equal(missing.quality.bitrate,320);
+});
+
 test('real lower-quality official originals are copied without upscaling or an unrelated stream approval', {skip:!available},async t=>{
  const dir=await mkdtemp(join(tmpdir(),'playlist-official-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const source=join(dir,'original.mp3');await run(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=10','-ar','44100','-ac','2','-c:a','libmp3lame','-b:a','128k',source]);

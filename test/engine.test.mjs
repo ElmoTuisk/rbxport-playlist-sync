@@ -111,12 +111,19 @@ test('held Soulseek failures wait for explicit batch retry and do not bypass can
   await f.engine.sync(f.link.id);assert.equal(attempts,2);
 });
 
-test('Soulseek authentication or connection failures stop the batch before further downloads', async t => {
+test('Soulseek authentication failures stop the batch before further downloads', async t => {
   const f = await fixture(t);f.remote(['new','another']);let attempts=0;
   f.downloads.acquire = async () => {throw Object.assign(Error('No acceptable source'),{code:'QUALITY_REVIEW'});};
   f.downloads.soulseek = {enabled:true,async acquire(){attempts++;throw Object.assign(Error('Check Soulseek account'),{code:'SOULSEEK_AUTH'});}};
   const run = await f.engine.sync(f.link.id);
   assert.equal(run.status,'failed');assert.equal(attempts,1);assert.equal(f.calls.includes('import'),false);
+});
+
+test('a temporary Soulseek connection failure does not abandon later web downloads or source ordering',async t=>{
+ const f=await fixture(t);f.remote(['missing','new']);
+ f.downloads.acquire=async track=>{if(track.title==='missing')throw Object.assign(Error('No web source'),{code:'QUALITY_REVIEW'});return{file:f.path};};
+ f.downloads.soulseek={enabled:true,async acquire(){throw Object.assign(Error('Temporary connection failure'),{code:'SOULSEEK_CONNECTION'});}};
+ const run=await f.engine.sync(f.link.id);assert.equal(run.status,'complete');assert.equal(run.ready,1);assert.equal(run.attention,1);assert.equal(f.engine.rows(f.link.id).find(r=>r.track.title==='new').status,'ready');assert.equal(f.target[0],'new');
 });
 test('duplicate memberships are preserved and native unsafe reorder is refused', async t => {
   const f = await fixture(t); f.target.push('a'); const before = [...f.target];

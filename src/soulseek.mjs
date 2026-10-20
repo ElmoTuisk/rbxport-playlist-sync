@@ -38,7 +38,7 @@ async function audioFiles(root,directory=root){
  }return result;
 }
 export class Soulseek{
- constructor(dataDir,vault,downloads,options={}){Object.assign(this,{vault,downloads});this.directory=join(dataDir,'soulseek');this.account=null;this.nextSearch=0;this.installing=null;this.runner=options.runner||run;this.clock=options.clock||(()=>Date.now());this.toolOverride=options.tool||null;this.searchInterval=options.searchInterval??12000;}
+ constructor(dataDir,vault,downloads,options={}){Object.assign(this,{vault,downloads});this.directory=join(dataDir,'soulseek');this.account=null;this.nextSearch=0;this.retryAt=0;this.installing=null;this.runner=options.runner||run;this.clock=options.clock||(()=>Date.now());this.toolOverride=options.tool||null;this.searchInterval=options.searchInterval??12000;}
  async initialize(){await mkdir(this.directory,{recursive:true});for(const name of await readdir(this.directory))if(/^auth-[a-f0-9-]+\.conf$/.test(name))await unlink(join(this.directory,name));try{this.account=await this.vault.read();}catch{this.account=null;}}
  publicStatus(){return{configured:Boolean(this.account?.username&&this.account?.password),enabled:Boolean(this.account?.enabled),username:this.account?.username||'',allowIncoming:Boolean(this.account?.allowIncoming)};}
  get enabled(){return Boolean(this.account?.enabled&&this.account?.username&&this.account?.password);}
@@ -71,6 +71,7 @@ export class Soulseek{
  }
  async acquire(track,job,update,signal){
   signal?.throwIfAborted();if(!this.enabled)throw Error('Connect Soulseek in Settings before using the fallback.');if(!/^[a-f0-9]{64}$/.test(String(job.id)))throw Error('Invalid Soulseek job identifier.');
+  if(this.retryAt>this.clock())throw Object.assign(Error('Soulseek is temporarily unavailable after a connection error. Other web sources were still checked; retry this song later.'),{code:'QUALITY_REVIEW'});
   let executable;try{executable=await this.ensureTool(signal,update);}catch(e){e.code='SOULSEEK_SETUP';throw e;}
   const config=join(this.directory,`auth-${randomUUID()}.conf`),attempts=[],banned=[];
   await writeFile(config,`username = ${this.account.username}\npassword = ${this.account.password}\n`,{mode:0o600});
@@ -102,7 +103,7 @@ export class Soulseek{
      if(authenticationFailed||/invalid.{0,30}(password|credential|username)|login.{0,20}(failed|rejected)|password.{0,20}(incorrect|invalid)/i.test(error.message+terminalFailure))throw Object.assign(Error('Soulseek sign-in failed. Check your account in Settings.'),{code:'SOULSEEK_AUTH'});
      const perTrack=(peer&&/timed out/.test(error.message))||(terminalFailure&&!/connection|login|auth|network/i.test(terminalFailure));
      const rejected=/^(Soulseek (found|file)|Quality check failed)/.test(error.message);
-     if(!perTrack&&!rejected)throw Object.assign(Error(/timed out/.test(error.message)?'Soulseek timed out before completing the search or transfer. Retry later; this is not proof of a bad password.':'Soulseek connection failed. Check whether another client is using this account and retry.'),{code:'SOULSEEK_CONNECTION'});
+     if(!perTrack&&!rejected){this.retryAt=this.clock()+60000;throw Object.assign(Error(/timed out/.test(error.message)?'Soulseek timed out before completing the search or transfer. Other songs will continue; retry this song later.':'Soulseek connection failed. Other songs will continue; check whether another client is using this account and retry this song later.'),{code:'SOULSEEK_CONNECTION'});}
      const noResults=terminalFailure==='NoSearchResults';
      attempts.push({source:'Soulseek',status:rejected?'quality':noResults?'empty':'failed',message:rejected?error.message.slice(0,300):noResults?'No matching peer files returned for this search':'Peer transfer failed; trying an alternative',results:raw});
      update({attempts:[...attempts],message:attempts.at(-1).message});

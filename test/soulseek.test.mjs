@@ -79,6 +79,14 @@ test('a normal no-result exit remains a per-track review so the batch can contin
   await assert.rejects(f.soulseek.acquire(track,job,()=>{},new AbortController().signal),error=>error.code==='QUALITY_REVIEW'&&error.attempts[0].status==='empty');
 });
 
+test('temporary connection failures back off without repeated helper launches, then allow a later retry',async t=>{
+ const f=await fixture(t);let now=0,calls=0;f.soulseek.clock=()=>now;
+ f.soulseek.runner=async()=>{calls++;throw Error('Tool timed out');};
+ await assert.rejects(f.soulseek.acquire(track,job,()=>{}),e=>e.code==='SOULSEEK_CONNECTION');assert.equal(calls,1);
+ await assert.rejects(f.soulseek.acquire(track,job,()=>{}),e=>e.code==='QUALITY_REVIEW'&&/temporarily unavailable/.test(e.message));assert.equal(calls,1);
+ now=61000;await assert.rejects(f.soulseek.acquire(track,job,()=>{}),e=>e.code==='SOULSEEK_CONNECTION');assert.equal(calls,2);
+});
+
 test('helper option errors are setup failures rather than misleading account errors', async t => {
   const f = await fixture(t);
   f.soulseek.runner = async () => { throw Error("Tool exited 2: [error] [cli] Input error: Option '--length-tol' requires an integer parameter, got '6.4698'"); };

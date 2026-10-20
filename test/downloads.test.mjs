@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {Downloads} from '../src/downloads.mjs';
 import {candidateFormats,inspectAudio} from '../src/quality.mjs';
 import {candidateCheck,searchVariants} from '../src/matching.mjs';
-import {parsePublicSpotify,Providers,mediaUrl} from '../src/providers.mjs';
+import {parsePublicSpotify,Providers,Spotify,mediaUrl} from '../src/providers.mjs';
 const track={key:'fixture:1',provider:'spotify',title:'Fixture Recording',artist:'Fixture Artist, Friend',duration:200};
 const candidate=(id,changes={})=>({id,title:'Fixture Artist - Fixture Recording',uploader:'Fixture Artist',duration:200,webpage_url:`https://soundcloud.com/fixture/${id}`,formats:[{format_id:'original',ext:'mp3',acodec:'mp3',abr:320}],...changes});
 async function fixture(t){
@@ -135,6 +135,16 @@ test('public Spotify reads require a proven complete snapshot and never accept a
  for(const page of [html([item],500),html([item],1,1),'<script id="__NEXT_DATA__">{}</script>'])assert.throws(()=>parsePublicSpotify(page,'fixture'),/partial public playlist/);
  assert.throws(()=>parsePublicSpotify(html([item]),'other'),/partial public playlist/);
 });
+
+test('Spotify API/public snapshots and SoundCloud snapshots retain exact album artwork',async()=>{
+ const url='https://i.scdn.co/image/fixture',album={name:'Fixture Album',images:[{url,width:640}]},s=new Spotify({},'');
+ s.get=async path=>path.includes('/items?')?{items:[{track:{type:'track',id:'abc',name:'Fixture Recording',duration_ms:200000,artists:[{name:'Fixture Artist'}],album}}],total:1,next:null}:{name:'Fixture',snapshot_id:'one'};
+ const api=await s.playlist({id:'fixture'});assert.equal(api.tracks[0].album,'Fixture Album');assert.equal(api.tracks[0].artworkUrl,url);
+ const publicTrack=structuredClone(item);publicTrack.itemV2.data.albumOfTrack={name:album.name,coverArt:{sources:album.images}};
+ assert.equal(parsePublicSpotify(html([publicTrack]),'fixture').tracks[0].artworkUrl,url);
+ const p=new Providers(null,{metadata:async()=>({entries:[candidate('sc',{thumbnail:'https://i1.sndcdn.com/artworks-fixture-large.jpg'})]})});
+ assert.equal((await p.playlist({provider:'soundcloud',url:'https://soundcloud.com/fixture/sets/test'})).tracks[0].artworkUrl,'https://i1.sndcdn.com/artworks-fixture-large.jpg');
+});
 test('public-read fallback is used for Spotify access restrictions but not rate limits or partial API data',async()=>{
  const p=new Providers({async playlist(){throw Error('Spotify denied playlist access.');}},{});let reads=0;p.publicSpotify=async()=>{reads++;return{tracks:[]};};
  await p.playlist({provider:'spotify',id:'fixture'});assert.equal(reads,1);
@@ -158,4 +168,25 @@ test('AAC acceptance is codec-specific and requires an explicit 256 kbps policy'
 test('original-mix labels do not hide the original, while remix names still must match',()=>{
  assert.equal(candidateCheck({...track,title:'Fixture Recording - Original Mix'},candidate('original')).ok,true);
  assert.equal(candidateCheck({...track,title:'Fixture Recording - Alice Remix'},candidate('wrong',{title:'Fixture Artist - Fixture Recording - Bob Remix'})).ok,false);
+});
+
+test('Spotify with/ft credits are search hints, not required title words; wrong versions and durations still fail',()=>{
+ const original={key:'spotify:test',title:"It Ain't Me (with Selena Gomez)",artist:'Kygo, Selena Gomez',duration:220.78};
+ const upload={title:"Kygo & Selena Gomez - It Ain't Me",artist:'Kygo',duration:221};
+ assert(candidateCheck(original,upload).ok);assert(searchVariants(original).some(q=>q.title==="It Ain't Me"&&q.artist==='Kygo'));
+ assert(!candidateCheck(original,{...upload,title:upload.title+' - Remix'}).ok);assert(!candidateCheck(original,{...upload,duration:250}).ok);
+ assert(!candidateCheck({...original,title:'With You'}, {...upload,title:'Kygo - You'}).ok);
+ const remix={...original,title:'MK - Dior ft Chrystal (Denon Reed Remix)',artist:'MK',duration:126.798};
+ assert(searchVariants(remix).some(q=>q.title==='MK - Dior (Denon Reed Remix)'));
+ assert(candidateCheck(remix,{title:'MK - Dior (Denon Reed Remix)',artist:'MK',duration:127}).ok);
+ assert(!candidateCheck(remix,{title:'MK - Dior (Someone Else Remix)',artist:'MK',duration:127}).ok);
+});
+test('discovery reaches later results and tries distinct alternate names without weakening recording checks',async t=>{
+ const f=await fixture(t),queries=[];
+ f.d.metadata=async url=>{queries.push(url);return {entries:url.startsWith('scsearch10:')?[...Array.from({length:5},(_,i)=>candidate('wrong'+i,{duration:500})),candidate('good')]:[]};};
+ await f.d.acquire(track,{id:'sixth'},()=>{},new AbortController().signal);assert.equal(queries.length,1);assert(f.downloaded[0].endsWith('/good'));
+ queries.length=0;const mix={...track,title:'Fixture Recording - Alice Remix'};
+ f.d.metadata=async url=>{queries.push(url);return {entries:[]};};
+ for await(const c of f.d.candidates(mix))assert.fail('No fixture results');
+ assert.equal(new Set(queries).size,queries.length);assert(queries[0].includes('Alice Remix'));assert(queries.some(u=>u==='scsearch5:Fixture Artist Fixture Recording'));
 });

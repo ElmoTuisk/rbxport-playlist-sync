@@ -6,9 +6,10 @@ import { candidateFormats, inspectAudio, lowerQualityFormats, audioCodec, offici
 import { SoundCloudPages } from './soundcloud.mjs';
 import { candidateCheck, durationCheck, searchVariants } from './matching.mjs';
 import { mediaUrl } from './providers.mjs';
+import {Artwork} from './artwork.mjs';
 
 export class Downloads {
-  constructor(settings, {runner = run, fetcher = fetch, clock = Date.now} = {}) { this.settings = settings; this.runner = runner; this.clock=clock; this.pages=new SoundCloudPages(fetcher,{clock}); this.metadataCache=new Map(); }
+  constructor(settings, {runner = run, fetcher = fetch, clock = Date.now} = {}) { this.settings = settings; this.runner = runner; this.clock=clock; this.pages=new SoundCloudPages(fetcher,{clock}); this.metadataCache=new Map();this.artwork=new Artwork({settings,runner,fetcher,clock}); }
   cache(info) {
     if(!info.webpage_url || !/^soundcloud(?::|$)/i.test(info.extractor || info.extractor_key || ''))return;
     const keys=['id','title','track','artist','uploader','duration','webpage_url','original_url','extractor','extractor_key','_has_drm','has_drm','is_live','live_status','sourcePreview','durationUnverified','officialDownload'];
@@ -52,12 +53,18 @@ export class Downloads {
       unavailable:!info.formats?.length};
   }
   async *candidates(track, signal, report = () => {}) {
-    const variants = searchVariants(track), query = variants.at(-1) || track;
+    const variants = searchVariants(track), primary = variants[1] || variants[0] || track, query=variants.at(-1) || track;
     const sources = [
       ...(track.provider === 'soundcloud' ? [{name:'SoundCloud original',url:mediaUrl(track.url)}] : []),
-      {name:'SoundCloud search',url:`scsearch5:${query.artist} ${query.title}`,playlist:true},
+      {name:'SoundCloud search',url:`scsearch10:${primary.artist} ${primary.title}`,playlist:true},
       {name:'Newgrounds search',url:`https://www.newgrounds.com/audio/search/title/${encodeURIComponent(query.title)}`,playlist:true,limit:5},
-      {name:'YouTube search',url:`ytsearch5:${query.artist} ${track.title}`,playlist:true},
+      {name:'YouTube search',url:`ytsearch10:${primary.artist} ${primary.title}`,playlist:true},
+      // Lazy fallbacks run only if the earlier candidates supplied no verified
+      // file. Keep version/remixer words in the first query; broaden only later.
+      ...variants.filter(q=>q.artist!==primary.artist || q.title!==primary.title).slice(0,2).flatMap(q=>[
+        {name:'SoundCloud alternate search',url:`scsearch5:${q.artist} ${q.title}`,playlist:true},
+        {name:'YouTube alternate search',url:`ytsearch5:${q.artist} ${q.title}`,playlist:true},
+      ]),
     ];
     const seen = new Set();
     for (const source of sources) {
@@ -67,7 +74,7 @@ export class Downloads {
         const result = await this.metadata(source.url,{...source,signal,search:true});
         const entries = result.entries || [result];
         if (!entries.filter(Boolean).length) report({source:source.name,status:'empty',message:'No search results'});
-        for (const candidate of entries.filter(Boolean).slice(0,5)) {
+        for (const candidate of entries.filter(Boolean).slice(0,source.name==='Newgrounds search'?5:10)) {
           const key = candidate.webpage_url || candidate.original_url || `${source.name}:${candidate.id}`;
           if (seen.has(key)) continue; seen.add(key);
           yield {...candidate,discoverySource:source.name};
@@ -193,10 +200,13 @@ export class Downloads {
     const aac=sourceReport.codec==='aac',compatibility=['opus','vorbis'].includes(sourceReport.codec),copy=['mp3','aac'].includes(sourceReport.codec),extension=compatibility?'flac':aac?'m4a':'mp3';
     update({ status: 'validating', message: compatibility?'Decoding approved source to FLAC for rbxport playback; original quality stays labelled':copy?'Preserving original compressed audio; verifying real quality':'Checking audio and publishing 320 kbps MP3' });
     const temp = join(work, `output.${extension}`);
-    await this.runner(s.ffmpeg, ['-y', '-v', 'error', '-nostdin', '-i', sourcePath, '-map', '0:a:0', '-map_metadata', '-1',
+    const cover=await this.artwork.prepare(track,sourcePath,work,signal);
+    const publish=picture=>this.runner(s.ffmpeg, ['-y', '-v', 'error', '-nostdin', '-i', sourcePath,...(picture?['-i',picture]:[]), '-map', '0:a:0',...(picture?['-map','1:v:0','-c:v','copy','-disposition:v:0','attached_pic','-metadata:s:v:0','title=Album cover','-metadata:s:v:0','comment=Cover (front)']:[]), '-map_metadata', '-1',
       ...(copy ? ['-c:a', 'copy'] : compatibility?['-c:a','flac','-sample_fmt','s32']:['-c:a', 'libmp3lame', '-b:a', '320k']),
       '-metadata', `title=${track.title}`, '-metadata', `artist=${track.artist}`,
+      ...(track.album?['-metadata',`album=${track.album}`]:[]),...(extension==='mp3'?['-id3v2_version','3']:[]),
       ...(sourceReport.belowStandard?['-metadata',`comment=Approved lower-quality source: ${sourceReport.codec.toUpperCase()} ${sourceReport.bitrate?Math.round(sourceReport.bitrate)+' kbps':'bitrate unknown'}${compatibility?'; decoded to FLAC for playback, not a lossless original':''}`]:[]),temp], { signal, timeout: 600000 });
+    try{await publish(cover.path);}catch(error){if(!cover.path || signal?.aborted)throw error;cover.path=null;await publish(null);}
     const outputQuality = await this.verify(temp, track, signal, true,verifyOptions);
     const quality={...outputQuality,belowStandard:Boolean(sourceReport.belowStandard),sourceCodec:sourceReport.codec,sourceBitrate:sourceReport.bitrate,officialOriginal:Boolean(sourceReport.officialOriginal)};
     const key = createHash('sha256').update(track.key).digest('hex').slice(0, 16);
@@ -205,7 +215,10 @@ export class Downloads {
     const final = join(root, `${safe || 'Track'} [${key}]${qualityLabel}.${extension}`);
     try { await stat(final); await this.verify(final, track, signal, true,verifyOptions); await unlink(temp); }
     catch (error) { if (error.code === 'ENOENT') await rename(temp, final); else throw error; }
-    return { file: final, quality, sourceUrl: sourceUrl || `local:${basename(sourcePath)}`, sourceReport,attempts };
+    let embedded=false;
+    if(cover.path){const probe=await this.probe(final,signal);embedded=probe.streams?.some(v=>v.codec_type==='video'&&v.disposition?.attached_pic) || false;}
+    const artwork=embedded?{status:'embedded',source:cover.source}:{status:'unavailable',message:'Album cover unavailable; audio download kept'};
+    return { file: final, quality, artwork, sourceUrl: sourceUrl || `local:${basename(sourcePath)}`, sourceReport,attempts };
   }
   async health() {
     const s = this.settings(); const results = {};
