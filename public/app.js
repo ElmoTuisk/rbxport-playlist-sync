@@ -11,6 +11,7 @@ async function refresh() { const state = await api('panel'); revision = state.re
 async function action(name, args = {}) {
   if (name === 'close') { window.close(); return; }
   const result = await api('action', 'POST', { action: name, args });
+  if(result?.externalUrl){window.open(result.externalUrl,'_blank','noopener,noreferrer');return result;}
   if (result?.url) { location.assign(result.url); return; }
   await refresh(); return result;
 }

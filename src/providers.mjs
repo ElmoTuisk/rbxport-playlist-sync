@@ -215,9 +215,11 @@ export class Providers {
       throw new Error('Incomplete SoundCloud playlist; previous snapshot retained.');
     const tracks = raw.entries.map(e => {
       if (!e.title || !e.duration) throw new Error('SoundCloud returned incomplete track metadata; previous snapshot retained.');
-      return { key: `soundcloud:${e.id}`, id: String(e.id), provider: 'soundcloud', title: e.track || e.title,
+      const track = { key: `soundcloud:${e.id}`, id: String(e.id), provider: 'soundcloud', title: e.track || e.title,
         artist: e.artist || e.uploader || '', duration: e.duration || 0,
         url: mediaUrl(e.webpage_url || e.url), unavailable: e.availability === 'private' || !e.id };
+      const audio=this.tools.sourceInfo?.(track,e);if(audio)track.sourceAudio=audio;
+      return track;
     });
     return { name: raw.title || 'SoundCloud playlist', revision: createHash('sha256').update(JSON.stringify(tracks)).digest('hex'), tracks };
   }

@@ -4,14 +4,24 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.7.1 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.8.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
+
+<table>
+  <tr><th>Compact panel</th><th>Quality review</th></tr>
+  <tr>
+    <td valign="top"><img src="docs/images/playlist-panel.png" width="350" alt="Compact Playlist Sync panel showing a lower-quality match and a preview-only source"></td>
+    <td valign="top"><img src="docs/images/quality-review.png" width="350" alt="Per-song quality confirmation showing reported AAC at 160 kbps and Confirm and download"><p>See the codec, bitrate and source before approving a lower-quality stream. Your normal audio standard stays unchanged.</p></td>
+  </tr>
+</table>
+
+*The actual add-on panel and quality review, shown with fictional example data. In rbxport the panel opens beneath Tag List.*
 
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.7.1-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.8.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -30,6 +40,10 @@ For future sessions, use the **Playlist Sync** Desktop or Start Menu shortcut. I
 Available source songs go first, in source order. Extra local songs stay at the bottom in their original relative order, with a notice. Sync never automatically deletes your audio files or existing playlist entries.
 
 A small **⇄** beside a linked playlist opens its details: green means synced, amber needs attention, blue is syncing, and grey is waiting for a check. Closing the panel keeps background sync running.
+
+## Background performance
+
+The add-on skips hidden/unchanged panel renders, builds All tracks only when expanded, reuses its installed UI code, coalesces progress updates and avoids redundant playlist-add commands. Original metadata is cached for five minutes in a bounded cache; public SoundCloud hints expire after ten minutes. Downloads and audio analysis still do work while active.
 
 ## Spotify setup (optional)
 
@@ -57,7 +71,17 @@ Start sign-in with **Connect**; opening the redirect address directly does not s
 
 Tied candidates and missing files remain for individual review. A unique eligible file already in the target playlist is preferred. This action uses the last checked source order and performs no downloads, imports or deletions. Normal **Sync** refreshes the online source and processes missing songs. Changed suggestions or playlist membership invalidate an old confirmation. If the playlist contains duplicate memberships, bulk ordering stops and asks you to remove those duplicates first.
 
+## SoundCloud official downloads
+
+Sync tries the artist-enabled **Download original file** format before stream copies. By default it accepts the original bitrate even when below your normal standard, preserves the audio without upscaling, and marks lower-quality originals with **LOWER**, codec and bitrate. You can turn this off under **gear → Advanced → Accept artist-enabled official downloads at their original quality**. Recording identity, length, complete decoding, stereo and sample-rate checks still apply.
+
+SoundCloud may require sign-in for its original downloads. If an artist-enabled original is unavailable to the current session, the add-on reports that requirement and continues other sources. Supply your own SoundCloud cookies file under Advanced when needed. **View official download** opens the original SoundCloud page for sign-in or external artist download steps; gates are not submitted automatically. A “free download” title alone is not proof that an original file is accessible.
+
+Ordinary lower-quality SoundCloud/YouTube streams still require the separate confirmation below. Preview-only formats are never treated as complete songs. Full recording lengths are read from matching public SoundCloud metadata when available, so a 30-second preview does not incorrectly reject a full-length alternative.
+
 ## Missing songs / “Check source”
+
+Linking initially checks the source and your collection; it does not download music. The status explicitly says **Click Sync to search and download**. Available original-stream choices appear immediately, labelled **Lower-quality original stream available** until a complete search has run. **Sync** searches other sources at your usual audio standard.
 
 ### Choose lower-quality audio for one song
 

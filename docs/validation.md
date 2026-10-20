@@ -1,6 +1,6 @@
 # Validation record
 
-Updated 19 October 2026. This record distinguishes tests from unverified integrations.
+Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
 ## Automated checks
 
@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-97 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+111 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,14 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## SoundCloud downloads and performance 0.8.0
+
+The failing 46-track source was inspected without acquiring audio or changing playlist membership. Its saved run was a library-only preview, not a download batch. The public formats offered 42 full-length lower-quality streams, two preview-only entries, and two entries with no playable formats. No original download format was exposed to the current session. The new complete read returned all 46 and corrected the two preview lengths to 185.182 and 143.695 seconds using matching public SoundCloud IDs/full_duration. Three bounded public page requests supplemented one extractor run. Looking up the first original again used the cache and started no extra metadata process. This establishes discovery/length handling, not 46 successful downloads.
+
+Official SoundCloud download formats are preferred over streams. The Accept artist-enabled official downloads at their original quality setting is enabled by default; it permits original bitrate while retaining recording, full-decoding, duration, stereo and sample-rate checks. A real synthetic 128 kbps MP3 official-original fixture passed acquisition/publishing and its compressed packet hash was unchanged. Ordinary lower-quality streams still need confirmation. Original availability can require SoundCloud sign-in/cookies; external artist download gates are opened on the SoundCloud page for user completion, never submitted automatically. No authenticated live official-original transfer was available to verify for this source.
+
+Performance changes reuse prepared SQLite statements and installed native renderer code, coalesce cosmetic transfer progress, avoid redundant add commands for known target members, bound original metadata/public-hint caches, ignore unrelated app mutations and skip hidden/unchanged panel renders. Collapsed All tracks does not construct the 900 ready rows in the regression fixture. Tests verify code reuse/reinstall, hidden render counts, mutation filtering, cache limits/expiry/cancellation and progress coalescing. The running native UI (version 15) displayed 42 original-stream quality choices and two corrected preview lengths; View quality opened its format choices, and the complete popover stayed within the viewport. Independent before/after target-ID checks confirmed unchanged membership. A 25-second hidden-panel sample spanning a heartbeat observed zero root DOM mutations. Job lookup now uses a row index instead of repeatedly scanning the job list. These are targeted checks, not a guarantee about every machine or a benchmark of audio playback under load.
 
 ## Visible quality status 0.7.1
 

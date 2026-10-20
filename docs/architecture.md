@@ -1,5 +1,13 @@
 # Architecture and maintenance notes
 
+## Source originals, previews and background work in 0.8.0
+
+SoundCloud page hints retain only matched IDs, full recording length, preview/download flags and the presence of an external artist download link. The reader caps response size, time, cache lifetime and entry counts. Only preview entries need extra pages during playlist extraction. Original candidate metadata is cached for five minutes (128 compact entries, without descriptions, signed stream URLs or request headers); public hints expire after ten minutes. Extractor/download commands retain their existing source allowlist and checks. A SoundCloud `download` format alone identifies an artist-enabled original; another provider or an ordinary stream cannot inherit that exception. Actual audio still determines codec/bitrate and the LOWER label. No original is fabricated from a stream.
+
+A complete playlist read exposes original stream offers without downloading; queued offers remain distinguishable from completed searches. Preview-only format IDs are filtered before selection/approval. If the full recording length cannot be established, acquisition waits for review instead of searching for a 30-second copy. External download buttons open the original SoundCloud track through the existing host URL capability, keeping gated actions under user control.
+
+The bridge installs the renderer once per execution context and checks for removal before using the lightweight model-update path. Hidden or unchanged panels skip rendering; All tracks content is created only on expansion. The sidebar observer ignores unrelated changes. SQLite statements are prepared once; progress-only writes are coalesced at 250 ms while stage changes and completion remain immediate. Existing target members avoid redundant membership commands.
+
 ## Per-song quality approvals in 0.7.0
 
 Discovery records lower-quality alternatives only after candidate identity/duration checks. Options carry a server-generated ID binding the track key, source URL, format, codec, reported or verified bitrate and optional staged file. They do not change settings or start an unapproved lower-quality download. Explicit URL selection persists its value before metadata inspection; selected local files are probed/decoded first. Errors and quality holds retain the selection, and renderer drafts survive refreshes.

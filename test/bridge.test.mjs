@@ -16,6 +16,17 @@ test('popover and shared panel compile as self-contained scripts with serialized
   const model = { links: [{ name: "O'Brien </script>", playlistId: '1' }], expiresAt: Date.now() };
   assert.doesNotThrow(() => new Function(`return (${installHostUi.toString()})(${JSON.stringify(model)},${mountPanel.toString()},'',${fitPopover.toString()})`));
 });
+
+test('native updates reuse installed code and reinstall safely after the UI is removed',async()=>{
+ const bridge=new Bridge(),expressions=[];bridge.mainFrameId='main';bridge.boundContext=1;
+ bridge.contexts.set(1,{id:1,origin:'http://tauri.localhost',auxData:{frameId:'main',isDefault:true}});
+ let removed=false;bridge.evaluate=async expression=>{expressions.push(expression);if(removed&&!expression.includes('function installHostUi')){removed=false;return{needsInstall:true};}return{installed:true};};
+ const model={revision:1,links:[],rows:{},jobs:[]};
+ await bridge.updateHost(model,'');await bridge.updateHost({...model,revision:2},'');
+ assert(expressions[0].includes('function mountPanel'));assert(!expressions[1].includes('function mountPanel'));
+ assert(expressions[1].length<expressions[0].length/10,'Progress updates do not resend the renderer, installer and stylesheet');
+ removed=true;await bridge.updateHost({...model,revision:3},'');assert(expressions.at(-1).includes('function installHostUi'));
+});
 test('native command expressions compile with serialized untrusted arguments', async () => {
   const bridge = new Bridge();
   const expressions = [];

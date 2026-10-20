@@ -1,25 +1,26 @@
 /** Shared by the standalone fallback and the in-rbxport popover. No network or host globals. */
 export function mountPanel(root, initial, send) {
   if (root.playlistSyncPanel) { root.playlistSyncPanel.update(initial); return root.playlistSyncPanel; }
-  let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false;
+  let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false, allFor = null;
   let bulkFor=null,bulkPlan=null,bulkAlternates=false,bulkNotice='';
   const reviewDrafts={},reviewNotices={};let qualityPending=null;
+  let jobsByRow=new Map((initial.jobs || []).map(job=>[job.rowId,job]));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
   const needsHelp = row => !['ready', 'matched', 'ignored'].includes(row.status);
-  const labels = { missing: 'Missing', review: 'Check source', missing_file: 'File unavailable', unavailable: 'Unavailable', failed: 'Failed', cancelled: 'Cancelled', interrupted: 'Interrupted' };
+  const labels = { missing: 'Not downloaded yet', review: 'Check source', missing_file: 'File unavailable', unavailable: 'Unavailable', failed: 'Failed', cancelled: 'Cancelled', interrupted: 'Interrupted' };
   const qualityOffer = row => {
     if (!needsHelp(row) || row.reviewKind === 'match') return null;
-    const job = (model.jobs || []).find(j => j.rowId === row.id);
+    const job = jobsByRow.get(row.id);
     if (!job?.lowerOptions?.length) return null;
     const option = job.qualityApproval || [...job.lowerOptions].sort((a,b) => Number(b.verified)-Number(a.verified) || (Number(b.bitrate)||0)-(Number(a.bitrate)||0))[0];
     const quality = `${String(option.codec || 'audio').toUpperCase()} ${option.bitrate > 0 ? Math.round(option.bitrate)+' kbps' : '· bitrate unknown'} · ${option.verified ? 'verified' : 'reported'}`;
     const pending = !job.qualityApproval;
-    const state = pending ? ['searching','downloading','validating'].includes(job.status) ? 'Checking sources · lower-quality audio found' : 'Only lower-quality audio found' : 'Lower-quality download approved';
+    const state = pending ? ['searching','downloading','validating'].includes(job.status) ? 'Checking sources · lower-quality audio found' : job.originalOnly ? 'Lower-quality original stream available' : 'Only lower-quality audio found' : 'Lower-quality download approved';
     return { pending, label: `${state} · ${quality}` };
   };
-  const rowLabel = row => qualityOffer(row)?.label || (row.status === 'review' && row.reviewKind === 'match' ? 'Check existing match' : labels[row.status] || row.status);
+  const rowLabel = row => qualityOffer(row)?.label || (row.status === 'review' && row.reviewKind === 'match' ? 'Check existing match' : needsHelp(row)&&row.track.sourceAudio?.preview ? 'SoundCloud preview only · full recording needed' : needsHelp(row)&&row.track.sourceAudio?.unavailable ? 'Original unavailable · Sync to search alternatives' : labels[row.status] || row.status);
   function render(force = false) {
     if (!force && root.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     root.innerHTML = `<div class="ps-head"><strong>Playlist sync</strong><div>${button('settings', '⚙', '', 'aria-label="Sync settings" title="Settings"')}${button('close', '×', '', 'aria-label="Close playlist sync"')}</div></div>
@@ -34,7 +35,7 @@ export function mountPanel(root, initial, send) {
           <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
           ${bulkFor===link.id?bulkForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
-          <details class="ps-more"><summary>All tracks · ${rows().length}</summary>${rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small${qualityOffer(r)||r.audioQuality?.belowStandard?' class="ps-quality"':''}>${esc(r.track.artist)} · ${esc(rowLabel(r))}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}`:''}</small></div></div>`).join('')}</details></div>` : ''}</section>`;
+          <details class="ps-more" data-all-tracks="${esc(link.id)}" ${allFor===link.id?'open':''}><summary>All tracks · ${rows().length}</summary>${allFor===link.id?rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small${qualityOffer(r)||r.audioQuality?.belowStandard?' class="ps-quality"':''}>${esc(r.track.artist)} · ${esc(rowLabel(r))}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}${r.audioQuality.officialOriginal?' · official original':''}`:''}</small></div></div>`).join(''):''}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
       ${mode === 'link' ? linkForm() : ['settings','soulseek'].includes(mode) ? settingsForm() : ''}
       <div class="ps-foot">${button('link', '+ Link playlist', '', 'class="ps-text"')}<span>${model.settings?.quality==='club-aac-256'?'MP3 320 · AAC 256':'320 kbps MP3'}</span>${model.active ? button('cancel', 'Cancel') : ''}</div>`;
@@ -55,10 +56,11 @@ export function mountPanel(root, initial, send) {
   function reviewForm(row) {
     if (!row) return '';
     const match = row.reviewKind === 'match' && row.candidates?.length;
-    const job=(model.jobs || []).find(j=>j.rowId===row.id),draft=reviewDrafts[row.id] || {},action=draft.action || (job?.overrideUrl?'source':match?'match':'file');
+    const job=jobsByRow.get(row.id),draft=reviewDrafts[row.id] || {},action=draft.action || (job?.overrideUrl?'source':match?'match':'file');
     const attempts=job?.attempts || [];
     const sourceDetails=attempts.length ? '<details class="ps-more"><summary>Source attempts</summary>'+attempts.filter(a=>a.status!=='searching').slice(-12).map(a=>'<p class="ps-muted">'+esc(a.source)+': '+esc(a.message)+'</p>').join('')+'</details>' : '';
-    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${reviewNotices[row.id]?`<p role="status" class="ps-muted">${esc(reviewNotices[row.id])}</p>`:''}${qualityForm(row,job)}${sourceDetails}<label>Resolve<select name="action" id="ps-resolution">${[['file','Use an audio file'],['match','Match existing track'],['source','Use a source URL'],['retry','Retry'],['ignore','Ignore']].map(([value,label])=>`<option value="${value}" ${action===value?'selected':''}>${label}</option>`).join('')}</select></label><div id="ps-resolution-fields">${resolutionFields(action,row,draft,job)}</div><div class="ps-form-actions">${button('dismiss-review', 'Close')}<button ${busy||model.active?'disabled':''}>${action==='source'?'Check source & download':'Save'}</button></div></form>`;
+    const official=job?.officialDownload || row.track.sourceAudio?.officialDownload;
+    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${official?.enabled||official?.external?`<p class="ps-muted">${official.enabled?'Artist-enabled original download. If it is unavailable, SoundCloud sign-in may be required.':'The artist links to an external download page.'} ${button('official','View official download',row.id)}</p>`:''}${reviewNotices[row.id]?`<p role="status" class="ps-muted">${esc(reviewNotices[row.id])}</p>`:''}${qualityForm(row,job)}${sourceDetails}<label>Resolve<select name="action" id="ps-resolution">${[['file','Use an audio file'],['match','Match existing track'],['source','Use a source URL'],['retry','Retry'],['ignore','Ignore']].map(([value,label])=>`<option value="${value}" ${action===value?'selected':''}>${label}</option>`).join('')}</select></label><div id="ps-resolution-fields">${resolutionFields(action,row,draft,job)}</div><div class="ps-form-actions">${button('dismiss-review', 'Close')}<button ${busy||model.active?'disabled':''}>${action==='source'?'Check source & download':'Save'}</button></div></form>`;
   }
   function resolutionFields(action,row,draft={},job) {
     return action==='file'?`<label>Audio file path<input name="path" value="${esc(draft.path ?? (job?.acquisition==='manual'?job.sourcePath:'') ?? '')}" required></label>`:action==='source'?`<label>Source URL<input name="url" type="url" value="${esc(draft.url ?? job?.overrideUrl ?? '')}" required></label>`:action==='match'?matchFields(row):'';
@@ -76,7 +78,7 @@ export function mountPanel(root, initial, send) {
     const s = model.settings || {};
     const spotify = model.spotify || {};
     const soulseek = model.soulseek || {};
-    return `<div class="ps-form"><form data-form="settings"><label>Download folder<input name="musicFolder" value="${esc(s.musicFolder)}" required></label><label>Audio standard<select name="quality"><option value="strict-mp3-320" ${s.quality!=='club-aac-256'?'selected':''}>MP3 320 kbps / lossless</option><option value="club-aac-256" ${s.quality==='club-aac-256'?'selected':''}>Also allow AAC 256 kbps or higher</option></select></label><details class="ps-more"><summary>Advanced</summary>${[['ytdlp','yt-dlp'],['ffmpeg','FFmpeg'],['ffprobe','FFprobe'],['cookiesFile','SoundCloud cookies file']].map(([key,label]) => `<label>${label}<input name="${key}" value="${esc(s[key])}"></label>`).join('')}<label class="ps-check"><input type="checkbox" name="autoAnalyse" ${s.autoAnalyse ? 'checked' : ''}> Analyze new tracks</label><p class="ps-muted">MP3 requires 320 kbps; optional AAC requires 256 kbps. Lossless is accepted. AAC is preserved as M4A; lower-quality audio is never upscaled. Duration and full decoding are checked.</p></details><div class="ps-form-actions">${button('dismiss','Done')}<button>Save</button></div></form>
+    return `<div class="ps-form"><form data-form="settings"><label>Download folder<input name="musicFolder" value="${esc(s.musicFolder)}" required></label><label>Audio standard<select name="quality"><option value="strict-mp3-320" ${s.quality!=='club-aac-256'?'selected':''}>MP3 320 kbps / lossless</option><option value="club-aac-256" ${s.quality==='club-aac-256'?'selected':''}>Also allow AAC 256 kbps or higher</option></select></label><details class="ps-more"><summary>Advanced</summary>${[['ytdlp','yt-dlp'],['ffmpeg','FFmpeg'],['ffprobe','FFprobe'],['cookiesFile','SoundCloud cookies file']].map(([key,label]) => `<label>${label}<input name="${key}" value="${esc(s[key])}"></label>`).join('')}<label class="ps-check"><input type="checkbox" name="allowLowerOfficial" ${s.allowLowerOfficial!==false ? 'checked' : ''}> Accept artist-enabled official downloads at their original quality</label><p class="ps-muted">Official originals are tried first and labelled with their actual quality. Lower-quality stream copies still need confirmation. SoundCloud sign-in may be needed for original downloads; supply your cookies file above.</p><label class="ps-check"><input type="checkbox" name="autoAnalyse" ${s.autoAnalyse ? 'checked' : ''}> Analyze new tracks</label><p class="ps-muted">MP3 requires 320 kbps; optional AAC requires 256 kbps. Lossless is accepted. AAC is preserved as M4A; lower-quality audio is never upscaled. Duration and full decoding are checked.</p></details><div class="ps-form-actions">${button('dismiss','Done')}<button>Save</button></div></form>
       <details class="ps-more"><summary>${spotify.connected ? 'Spotify connected' : spotify.status === 'waiting' ? 'Spotify · finish sign-in' : 'Connect Spotify'}</summary><form data-form="spotify">${spotify.message ? `<p class="ps-muted" role="status">${esc(spotify.message)}</p>` : ''}<p class="ps-muted">In the Spotify developer dashboard, register this exact redirect URI. Then use Connect below; the address itself is not a sign-in link.</p><code>http://127.0.0.1:43821/oauth/spotify</code><label>Client ID<input name="clientId" value="${esc(spotify.clientId || '')}" required autocomplete="off"></label><button ${busy ? 'disabled' : ''}>${spotify.connected ? 'Reconnect' : 'Connect'}</button></form></details>
       <details class="ps-more" ${mode === 'soulseek' ? 'open' : ''}><summary>Soulseek fallback${soulseek.enabled ? ' · enabled' : ''}</summary><form data-form="soulseek"><p class="ps-muted">Use an existing Soulseek account. Details are encrypted for your Windows account. The verified helper downloads automatically on first use. Only acquire audio you are entitled to download.</p><label>Username<input name="username" value="${esc(soulseek.username || '')}" required autocomplete="off"></label><label>Password<input name="password" type="password" ${soulseek.configured ? 'placeholder="Leave blank to keep saved password"' : 'required'} autocomplete="new-password"></label><label class="ps-check"><input type="checkbox" name="enabled" ${!soulseek.configured || soulseek.enabled ? 'checked' : ''}> Use as fallback on Sync</label><label class="ps-check"><input type="checkbox" name="allowIncoming" ${soulseek.allowIncoming ? 'checked' : ''}> Allow incoming peer connections</label><p class="ps-muted">Uses a temporary Soulseek listener on TCP 49998 while searching. No file sharing or firewall/router changes. Some peers cannot reply without it.</p><p class="ps-muted">${soulseek.configured ? 'Account saved. A search verifies sign-in. ' : ''}An active Soulseek client may need a separate account. Quality and length checks remain strict.</p><button ${busy ? 'disabled' : ''}>Save account</button></form></details></div>`;
   }
@@ -111,7 +113,7 @@ export function mountPanel(root, initial, send) {
     }
     else if (action === 'dismiss-review') { reviewing = null; render(true); }
     else if(action==='lower-review'){
-      const job=(model.jobs || []).find(j=>j.rowId===id),optionId=root.querySelector('[data-lower-choice]')?.value || job?.lowerOptions?.[0]?.id;
+      const job=jobsByRow.get(id),optionId=root.querySelector('[data-lower-choice]')?.value || job?.lowerOptions?.[0]?.id;
       if(optionId){qualityPending={rowId:id,optionId};render(true);requestAnimationFrame(()=>root.querySelector('[data-quality-review]')?.scrollIntoView({block:'nearest'}));}
     }
     else if(action==='lower-cancel'){qualityPending=null;render(true);}
@@ -127,7 +129,7 @@ export function mountPanel(root, initial, send) {
     if (event.target.id === 'ps-resolution') {
       const action = event.target.value;
       reviewDrafts[reviewing]={...reviewDrafts[reviewing],action};qualityPending=null;
-      const row=rows().find(r=>r.id===reviewing),job=(model.jobs || []).find(j=>j.rowId===reviewing);
+      const row=rows().find(r=>r.id===reviewing),job=jobsByRow.get(reviewing);
       root.querySelector('#ps-resolution-fields').innerHTML=resolutionFields(action,row,reviewDrafts[reviewing],job);
     }
   });
@@ -135,9 +137,13 @@ export function mountPanel(root, initial, send) {
     const form=event.target.closest?.('[data-form="resolve"]');if(!form || !event.target.name)return;
     reviewDrafts[form.dataset.id]={...reviewDrafts[form.dataset.id],[event.target.name]:event.target.value};qualityPending=null;
   });
+  root.addEventListener('toggle',event=>{
+    const id=event.target.dataset?.allTracks;if(!id)return;
+    const next=event.target.open?id:null;if(allFor===next)return;allFor=next;render(true);
+  },true);
   root.addEventListener('submit', async event => {
     event.preventDefault(); const form = event.target; const value = Object.fromEntries(new FormData(form));
-    if (form.dataset.form === 'settings') value.autoAnalyse = form.elements.autoAnalyse.checked;
+    if (form.dataset.form === 'settings') { value.autoAnalyse = form.elements.autoAnalyse.checked; value.allowLowerOfficial=form.elements.allowLowerOfficial.checked; }
     if (form.dataset.form === 'soulseek') { value.enabled = form.elements.enabled.checked; value.allowIncoming=form.elements.allowIncoming.checked; }
     if (form.dataset.form === 'resolve') {value.id = form.dataset.id;reviewDrafts[value.id]={...value};}
     const result=await act(form.dataset.form, value);
@@ -150,7 +156,7 @@ export function mountPanel(root, initial, send) {
   const controller = { update(value) {
     const selectionChanged = value.selectionRevision !== model.selectionRevision && value.selected;
     if (selectionChanged) { expanded = value.selected; reviewing = null; mode = '';bulkFor=null;bulkPlan=null;bulkNotice=''; }
-    model = value; render(Boolean(selectionChanged));
+    model = value;jobsByRow=new Map((value.jobs || []).map(job=>[job.rowId,job])); render(Boolean(selectionChanged));
   }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = '';bulkFor=null;bulkPlan=null;bulkNotice=''; render(true); } };
   root.playlistSyncPanel = controller; render(); return controller;
 }

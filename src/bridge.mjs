@@ -1,7 +1,7 @@
 // Windows rbxport 1.9.0 explicitly exposes RBXPORT_DEVTOOLS_PORT for automation.
 // Use only its existing guarded commands; never open or write master.db ourselves.
 import { mountPanel } from '../public/panel.mjs';
-import { installHostUi, fitPopover } from './host-ui.mjs';
+import { installHostUi, fitPopover, HOST_UI_VERSION } from './host-ui.mjs';
 export class Bridge {
   constructor(changed = () => {}) { this.socket = null; this.pending = new Map(); this.sequence = 0; this.changed = changed; this.contexts = new Map(); }
   get connected() { return this.socket?.readyState === WebSocket.OPEN; }
@@ -19,7 +19,7 @@ export class Bridge {
     socket.addEventListener('message', event => {
       let message; try { message = JSON.parse(event.data); } catch { return; }
       if (message.method === 'Runtime.executionContextCreated') this.contexts.set(message.params.context.id, message.params.context);
-      if (message.method === 'Runtime.executionContextsCleared') { this.contexts.clear(); this.boundContext = null; }
+      if (message.method === 'Runtime.executionContextsCleared') { this.contexts.clear(); this.boundContext = null; this.hostInstalled=false; }
       if (message.method === 'Runtime.bindingCalled' && message.params.name === '__playlistSyncAction') {
         if (this.acceptsHostContext(message.params.executionContextId)) {
           try { void this.onAction?.(JSON.parse(message.params.payload)); } catch { /* Malformed actions are ignored. */ }
@@ -63,7 +63,8 @@ export class Bridge {
       await this.request('Runtime.addBinding', { name: '__playlistSyncAction', executionContextId: context.id }, true);
       this.boundContext = context.id;
     }
-    return this.evaluate(`(${installHostUi.toString()})(${JSON.stringify(model)},${mountPanel.toString()},${JSON.stringify(css)},${fitPopover.toString()})`);
+    if(this.hostInstalled){const result=await this.evaluate(`(()=>{const host=window.__rbxportPlaylistSync;if(!host || host.version!==${HOST_UI_VERSION})return {needsInstall:true};host.update(${JSON.stringify(model)});return {installed:true};})()`);if(!result?.needsInstall)return result;}
+    const result=await this.evaluate(`(${installHostUi.toString()})(${JSON.stringify(model)},${mountPanel.toString()},${JSON.stringify(css)},${fitPopover.toString()},${HOST_UI_VERSION})`);this.hostInstalled=true;return result;
   }
   replyHost(id, result, error) { return this.evaluate(`window.__rbxportPlaylistSync?.reply(${JSON.stringify(id)},${JSON.stringify(result ?? null)},${JSON.stringify(error || null)})`); }
   openPanel() { return this.evaluate('window.__rbxportPlaylistSync?.open()'); }
@@ -91,5 +92,6 @@ export class Bridge {
     for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('rbxport disconnected')); }
     this.pending.clear();
     this.contexts.clear(); this.boundContext = null;
+    this.hostInstalled=false;
   }
 }

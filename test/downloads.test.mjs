@@ -65,6 +65,26 @@ test('known low-quality formats are reported as found but rejected, not download
  assert.equal(f.downloaded.length,0);
 });
 
+test('official SoundCloud originals keep their actual lower quality without approving ordinary streams',async t=>{
+ const f=await fixture(t),formats=[],run=f.d.runner,original={format_id:'download',ext:'mp3',acodec:'mp3',abr:128};
+ f.d.metadata=async()=>({entries:[candidate('official',{extractor:'soundcloud',formats:[{...original,format_id:'stream'},original]})]});
+ f.d.runner=async(exe,args,options)=>{if(exe==='fixture-ytdlp')formats.push(args[args.indexOf('-f')+1]);return run(exe,args,options);};
+ f.d.verify=async(path,track,signal,output,options)=>{assert(options.allowLower);return{ok:true,codec:'mp3',bitrate:128,belowStandard:true};};
+ const result=await f.d.acquire(track,{id:'official'},()=>{},new AbortController().signal);
+ assert.deepEqual(formats,['download']);assert(result.quality.officialOriginal);assert.equal(result.quality.sourceBitrate,128);assert.match(result.file,/LOWER MP3 128k/);
+ f.d.settings=()=>({musicFolder:f.dir,ytdlp:'fixture-ytdlp',ffmpeg:'fixture-ffmpeg',allowLowerOfficial:false});
+ await assert.rejects(f.d.acquire(track,{id:'off'},()=>{},new AbortController().signal),e=>e.code==='QUALITY_REVIEW');assert.equal(formats.length,1);
+});
+
+test('preview-only originals never get offered or downloaded while a complete alternate can still succeed',async t=>{
+ const f=await fixture(t);let calls=0;
+ f.d.metadata=async()=>++calls===1?candidate('preview',{sourcePreview:true,duration:30,formats:[{format_id:'http_mp3_preview',ext:'mp3',acodec:'mp3',abr:320}]}):{entries:[candidate('full')]};
+ const updates=[],result=await f.d.acquire({...track,provider:'soundcloud',url:'https://soundcloud.com/fixture/preview'},{id:'preview'},x=>updates.push(x),new AbortController().signal);
+ assert.equal(f.downloaded.length,1);assert(f.downloaded[0].endsWith('/full'));assert(result.attempts.some(a=>a.status==='preview'));assert(!updates.some(x=>x.lowerOptions?.length));
+ f.d.metadata=async()=>candidate('preview',{sourcePreview:true,duration:200,formats:[{format_id:'http_mp3_preview',ext:'mp3',acodec:'mp3',abr:128}]});
+ await assert.rejects(f.d.inspectSource(track,'https://soundcloud.com/fixture/preview'),/only offers a preview/);
+});
+
 test('matching lower-quality files are offered without download and explicit source inspection reports their real choice',async t=>{
  const f=await fixture(t),updates=[],low=candidate('low',{formats:[{format_id:'mp3-128',ext:'mp3',acodec:'mp3',abr:128}]});
  f.d.metadata=async()=>({entries:[low]});

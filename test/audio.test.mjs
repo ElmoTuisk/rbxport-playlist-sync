@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, stat, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -12,6 +12,18 @@ const tools = fileURLToPath(new URL('../.tools/', import.meta.url));
 const ffmpeg = process.env.FFMPEG || (existsSync(join(tools, 'ffmpeg.exe')) ? join(tools, 'ffmpeg.exe') : 'ffmpeg');
 const ffprobe = process.env.FFPROBE || (existsSync(join(tools, 'ffprobe.exe')) ? join(tools, 'ffprobe.exe') : 'ffprobe');
 const available = spawnSync(ffmpeg, ['-version'], { windowsHide: true }).status === 0 && spawnSync(ffprobe, ['-version'], { windowsHide: true }).status === 0;
+
+test('real lower-quality official originals are copied without upscaling or an unrelated stream approval', {skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-official-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const source=join(dir,'original.mp3');await run(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=10','-ar','44100','-ac','2','-c:a','libmp3lame','-b:a','128k',source]);
+ const track={key:'official:fixture',provider:'soundcloud',title:'Fixture Original',artist:'Fixture',duration:10,url:'https://soundcloud.com/fixture/original'};
+ const d=new Downloads(()=>({ffmpeg,ffprobe,ytdlp:'fixture-ytdlp',musicFolder:dir}),{runner:async(exe,args,options)=>{if(exe==='fixture-ytdlp'){assert.equal(args[args.indexOf('-f')+1],'download');await copyFile(source,args[args.indexOf('-o')+1].replace('%(ext)s','mp3'));return '';}return run(exe,args,options);}});
+ d.metadata=async()=>({extractor:'soundcloud',id:'fixture',title:track.title,artist:track.artist,duration:10,webpage_url:track.url,formats:[{format_id:'download',ext:'mp3',acodec:'mp3',abr:128}]});
+ const result=await d.acquire(track,{id:'official'},()=>{},new AbortController().signal);
+ assert(result.quality.officialOriginal);assert(result.quality.belowStandard);assert.equal(result.quality.sourceBitrate,128);assert.match(result.file,/LOWER MP3 128k/);
+ const hash=path=>run(ffmpeg,['-v','error','-i',path,'-map','0:a:0','-c:a','copy','-f','hash','-hash','sha256','-']);
+ assert.equal(await hash(result.file),await hash(source));
+});
 test('real audio: accept 320 MP3/lossless, reject 128 MP3 and truncated audio, never overwrite published files', { skip: !available }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'playlist-sync-audio-'));
   t.after(() => rm(dir, { recursive: true, force: true }));

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-10-20
+
+- Distinguish library-only checks from download attempts and expose original-stream quality choices immediately after reading a SoundCloud playlist.
+- Correct preview-only SoundCloud durations using public full-length metadata; exclude preview formats from acquisition, including lower-quality approvals.
+- Try artist-enabled SoundCloud original downloads first. Accept their actual original bitrate by default, label lower-quality originals, and retain strict checks for ordinary streams. Expose sign-in/external-download requirements.
+- Cache bounded original metadata, reuse native renderer code/SQLite statements, coalesce progress writes, skip redundant membership writes and hidden/unchanged UI renders, and lazily render All tracks.
+- Add README screenshots using example data.
+
 ## 0.7.1 — 2026-10-19
 
 - Mark songs with found lower-quality audio directly in the track list and All tracks, including codec, bitrate and whether quality is reported or verified.

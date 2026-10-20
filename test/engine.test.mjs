@@ -60,6 +60,16 @@ test('cached library recheck needs no provider request and never writes playlist
   assert.match(f.store.get('links', f.link.id).message, /2 in collection/);
 });
 
+test('preview shows available original streams without downloading and existing target members skip redundant add calls',async t=>{
+ const f=await fixture(t);f.remote(['a','b']);f.calls.length=0;
+ const run=await f.engine.sync(f.link.id);assert.equal(run.ready,2);assert(!f.calls.includes('add'));
+ f.remote(['new']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0];
+ f.store.put('rows',row.id,{...row,track:{...row.track,sourceAudio:{normal:false,lowerOptions:[{id:'lower',codec:'aac',bitrate:160}]}}});
+ await f.engine.sync(f.link.id,{preview:true,cached:true});assert.equal(f.acquisitions(),0);
+ assert.equal(f.store.all('jobs')[0].originalOnly,true);assert.equal(f.store.all('jobs')[0].status,'queued');
+ assert.match(f.store.get('links',f.link.id).message,/Click Sync to search and download/);
+});
+
 test('rechecking SoundCloud uploader tags clears stale source reviews and reuses collection files outside the target',async t=>{
  const f=await fixture(t);f.remote(['a']);await f.engine.sync(f.link.id,{preview:true});
  const local=f.tracks.find(t=>t.id==='a');local.title='Artist - Evening Song';local.artist='Fixture Label';
@@ -126,6 +136,13 @@ test('audio policy changes are explicit, persisted and reject unknown standards'
  const f=await fixture(t);assert.equal(f.engine.settings().quality,'strict-mp3-320');
  f.engine.saveSettings({quality:'club-aac-256'});assert.equal(f.engine.settings().quality,'club-aac-256');
  assert.throws(()=>f.engine.saveSettings({quality:'upscale-anything'}),/supported audio standard/);assert.equal(f.engine.settings().quality,'club-aac-256');
+});
+
+test('rapid cosmetic progress is coalesced without dropping the final state or import',async t=>{
+ const f=await fixture(t);f.remote(['new']);let writes=0;const put=f.store.put.bind(f.store);
+ f.store.put=(bucket,id,value)=>{if(bucket==='jobs')writes++;return put(bucket,id,value);};
+ f.downloads.acquire=async(track,job,update)=>{for(let i=0;i<1000;i++)update({status:'downloading',progress:(i/10)+'%',message:'Fixture transfer',attempts:[]});update({status:'downloading',progress:'100%',message:'Fixture transfer',attempts:[]});return {file:f.path};};
+ const run=await f.engine.sync(f.link.id);assert.equal(run.ready,1);assert(writes<15,`Coalesced 1001 progress events to ${writes} job writes`);assert.equal(f.store.all('jobs')[0].status,'ready');
 });
 
 test('a lower-quality URL waits for explicit per-song approval and targeted download leaves other missing songs alone',async t=>{

@@ -4,12 +4,12 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.7.1, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.8.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.7.1-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
+2. Download `playlist-sync-0.8.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -42,6 +42,10 @@ Resolved source tracks come first in source order. Extra local songs stay at the
 **Recheck files** scans your collection against the saved source list without downloading or changing the playlist. Equivalent comma/slash artist credits match automatically, while different mixes and durations still need review.
 
 **Accept suggested matches** opens a bulk preview for existing-match reviews. It shows a count and collapsible list, excludes alternate lengths/versions by default, and offers an explicit checkbox to include those. **Accept N & reorder** links the accepted existing files and immediately places all known source songs in the last checked Spotify/SoundCloud order. Extra local songs remain at the bottom in their existing relative order. Missing files and tied choices remain for individual review. Current library/files, target membership and the preview signature are revalidated. The action performs no downloads, imports or deletions; no separate Sync is required. Normal Sync refreshes the online source and processes missing songs. Duplicate target memberships block the bulk operation. Stop or finish an active sync before accepting.
+
+A first link performs a library/source preview, not a download batch. The status says Click Sync to search and download. Original-stream offers are available immediately without rerunning every provider. Preview-only sources show a specific notice and use a verified full recording length when public metadata exposes one.
+
+**Official originals:** Artist-enabled SoundCloud download formats are tried first and accepted at their actual bitrate by default, including lower-quality originals. The Advanced setting can disable that exception. Ordinary stream copies still need separate confirmation. Original downloads can require SoundCloud sign-in/cookies. View official download opens the source page for sign-in or external gates. Full decoding, duration, identity, stereo and sample-rate checks remain in force.
 
 **Check existing match** means a local candidate needs confirmation. **Check source** means acquisition needs attention. Resolve opens directly below that song, scrolls into view and shows the exact reason. Existing-match/retry/ignore choices are saved for Sync. Source URLs and selected files are inspected first; normal-quality choices start processing just that song. Lower-quality choices wait for separate approval. URLs, paths and drafts remain visible after errors and refreshes.
 

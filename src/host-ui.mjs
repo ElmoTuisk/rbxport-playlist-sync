@@ -9,9 +9,10 @@ export function fitPopover(viewport, anchor, panel, margin = 12) {
     top: Math.max(top + margin, Math.min(anchor.top, top + viewport.height - margin - height)) };
 }
 
-export function installHostUi(model, mountPanel, css, fitPopover) {
+export const HOST_UI_VERSION=15;
+export function installHostUi(model, mountPanel, css, fitPopover, version=15) {
   const key = '__rbxportPlaylistSync';
-  if (window[key] && window[key].version !== 14) window[key].dispose();
+  if (window[key] && window[key].version !== version) window[key].dispose();
   if (window[key]) { window[key].update(model); return { installed: true }; }
   const sheet = new CSSStyleSheet(); sheet.replaceSync(css); document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   let current = model, timer = null, layoutFrame = null, stopped = false;
@@ -28,6 +29,7 @@ export function installHostUi(model, mountPanel, css, fitPopover) {
       window.__playlistSyncAction(JSON.stringify({ id, action, args }));
     }).then(async result => {
       if (result?.url && new URL(result.url).origin === 'https://accounts.spotify.com') await window.__TAURI_INTERNALS__.invoke('open_url', { url: result.url });
+      if(result?.externalUrl && new URL(result.externalUrl).origin==='https://soundcloud.com')await window.__TAURI_INTERNALS__.invoke('open_url',{url:result.externalUrl});
       return result;
     });
   };
@@ -50,7 +52,7 @@ export function installHostUi(model, mountPanel, css, fitPopover) {
   };
   const sizeObserver = new ResizeObserver(schedulePosition);
   sizeObserver.observe(root);
-  const open = id => { if (!id) panel.collapse(); popover.hidden = false; position(); if (id) void send('select', { id }).catch(e => panel.showError(e.message)); };
+  const open = id => { panel.update(current);if (!id) panel.collapse(); popover.hidden = false; position(); if (id) void send('select', { id }).catch(e => panel.showError(e.message)); };
   const toolbar = document.createElement('button'); toolbar.id = 'playlist-sync-button'; toolbar.type = 'button';
   const icon = document.createElement('span'); icon.textContent = '⇄'; icon.setAttribute('aria-hidden', 'true');
   const label = document.createElement('span'); label.textContent = 'Playlist sync'; toolbar.append(icon, label);
@@ -98,7 +100,11 @@ export function installHostUi(model, mountPanel, css, fitPopover) {
     }
     schedulePosition();
   }
-  const observer = new MutationObserver(() => { if (timer === null) timer = requestAnimationFrame(decorate); });
+  const relevant = node => node.nodeType===1 && (node.matches('nav,[role="tree"],[role="treeitem"],button[aria-label="Tag List"]') || node.querySelector('nav,[role="tree"],[role="treeitem"],button[aria-label="Tag List"]'));
+  const observer = new MutationObserver(records => {
+    if(!records.some(record=>!root.contains(record.target) && (record.target.closest?.('nav') || [...record.addedNodes,...record.removedNodes].some(relevant))))return;
+    if(timer===null)timer=requestAnimationFrame(decorate);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   const expiry = setInterval(() => { if (Date.now() > current.expiresAt) dispose(); }, 10000);
   function dispose() {
@@ -112,7 +118,7 @@ export function installHostUi(model, mountPanel, css, fitPopover) {
     for (const p of pending.values()) { clearTimeout(p.timeout); p.reject(Error('Playlist Sync closed')); } pending.clear();
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter(s => s !== sheet); delete window[key];
   }
-  window[key] = { version: 14, update(value) { current = value; panel.update(value); decorate(); if (value.open) open(); }, open, dispose,
+  window[key] = { version, update(value) { const changed=value.revision!==current.revision || value.selectionRevision!==current.selectionRevision;current = value; if(!popover.hidden && changed)panel.update(value);if(changed)decorate(); if (value.open) open(); }, open, dispose,
     reply(id, result, error) { const p = pending.get(id); if (!p) return; clearTimeout(p.timeout); pending.delete(id); error ? p.reject(Error(error)) : p.resolve(result); } };
   decorate(); if (model.open) open();
   return { installed: true, visiblePlaylistBadges: document.querySelectorAll('[data-playlist-sync-badge]').length };

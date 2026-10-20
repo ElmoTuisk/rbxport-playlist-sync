@@ -71,6 +71,8 @@ test('lower-only results show quality and a review action before opening the son
  f.controller.update(model);
  assert.match(f.root.innerHTML,/<small class="ps-quality">Only lower-quality audio found · AAC 160 kbps · reported<\/small>/);
  assert.match(f.root.innerHTML,/data-id="a-0" aria-expanded="false">Review quality<\/button>/);
+ assert.doesNotMatch(f.root.innerHTML,/Fixture artist · Only lower-quality/);
+ f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
  assert.match(f.root.innerHTML,/Fixture artist · Only lower-quality audio found · AAC 160 kbps · reported/);
  assert.match(f.root.innerHTML,/data-id="a-1" aria-expanded="false">Resolve<\/button>/);
  assert.doesNotMatch(f.root.innerHTML,/data-form="resolve"/);
@@ -93,8 +95,27 @@ test('quality labels distinguish ongoing searches, approvals, verified files and
  assert.match(f.root.innerHTML,/Only lower-quality audio found · AAC · bitrate unknown · verified/);
  assert.doesNotMatch(f.root.innerHTML,/AAC 0 kbps/);
  f.controller.update({...base,rows:{...base.rows,a:[{...base.rows.a[0],status:'ready',audioQuality:{belowStandard:true,codec:'aac',bitrate:160}}]},jobs:[{rowId:'a-0',status:'ready',lowerOptions:[option],qualityApproval:option}]});
+ f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
  assert.match(f.root.innerHTML,/ready · LOWER AAC 160 kbps/);
  assert.doesNotMatch(f.root.innerHTML,/Only lower-quality audio found|Lower-quality download approved|Review quality/);
+});
+
+test('initial lower-quality originals are distinguished from a finished search and previews stay explicit',async()=>{
+ const f=fixture(),base={...f.initial,selected:'a',selectionRevision:2};
+ f.controller.update({...base,rows:{...base.rows,a:[{...base.rows.a[0],track:{...base.rows.a[0].track,sourceAudio:{preview:true}}},base.rows.a[1]]},jobs:[{rowId:'a-1',status:'queued',originalOnly:true,lowerOptions:[{codec:'aac',bitrate:160}]}]});
+ assert.match(f.root.innerHTML,/SoundCloud preview only · full recording needed/);
+ assert.match(f.root.innerHTML,/Lower-quality original stream available · AAC 160 kbps/);
+ assert.doesNotMatch(f.root.innerHTML,/Only lower-quality audio found/);
+ await f.click('review','a-1');
+ assert.match(f.root.innerHTML,/Review lower-quality file/);
+});
+
+test('ready rows under All tracks render only when the list is expanded',()=>{
+ const f=fixture(),ready=Array.from({length:900},(_,i)=>({id:String(i),status:'ready',track:{title:'Ready song '+i,artist:'Fixture'}}));
+ f.controller.update({...f.initial,selected:'a',selectionRevision:2,rows:{a:ready}});
+ assert.doesNotMatch(f.root.innerHTML,/Ready song 899/);
+ f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});assert.match(f.root.innerHTML,/Ready song 899/);
+ f.events.toggle({target:{dataset:{allTracks:'a'},open:false}});assert.doesNotMatch(f.root.innerHTML,/Ready song 899/);
 });
 
 test('bulk preview requires its separate confirmation and makes alternate versions an explicit option',async()=>{

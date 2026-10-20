@@ -63,6 +63,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     switch (name) {
       case 'select': if (!store.get('links', args.id)) throw Error('Unknown playlist link'); selected = args.id; selectionRevision++; changed(); break;
       case 'options': hostInfo = demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'); changed(); break;
+      case 'official': {const row=store.get('rows',args.id);if(row?.track.provider!=='soundcloud')throw Error('No SoundCloud source for this song');return {externalUrl:row.track.url};}
       case 'connect': await bridge.connect(); await syncHost(); changed(); break;
       case 'sync': startSync(args.id); break;
       case 'recheck': startSync(args.id, true, true); break;
@@ -192,13 +193,13 @@ function seedDemo(store) {
   const examples = [
     ['Night Signals', 'Mira Vale', 'ready', 'Existing 320 kbps MP3 linked', 361],
     ['Glasshouse (Extended Mix)', 'North Assembly', 'matched', 'Found in your collection', 423],
-    ['Blue Hour', 'Solenne', 'review', 'YouTube candidate is Opus at 128 kbps; strict quality requirement not met', 286],
+    ['Blue Hour', 'Solenne', 'review', 'Matching AAC audio is below your normal standard. Review its quality before downloading.', 286],
     ['Low Tide', 'Orion Park', 'review', 'Candidate differs by 27 seconds; possible video intro', 314],
     ['Transit Dub', 'Field Theory', 'missing_file', 'Matching file is on an unavailable drive', 407],
     ['First Light', 'Vela', 'missing', 'No confident match in your library', 302],
   ];
   for (const [i, [title, artist, status, reason, duration]] of examples.entries()) store.put('rows', `demo-${i}`, { id: `demo-${i}`, linkId: link.id, present: true, status, reason, candidates: [], track: { key: `demo:${i}`, title, artist, duration, url: 'https://open.spotify.com/' } });
-  store.put('jobs', 'demo-job', { id: 'demo-job', title: 'Blue Hour', artist: 'Solenne', status: 'review', message: 'No 320 kbps MP3 or lossless source available. Supply an original file.', updated: Date.now() - 360000 });
+  store.put('jobs', 'demo-job', { id: 'demo-job',linkId:link.id,rowId:'demo-2',title: 'Blue Hour', artist: 'Solenne', status: 'review',lowerOptions:[{id:'a'.repeat(64),url:'https://soundcloud.com/fixture/blue-hour',title:'Solenne - Blue Hour',codec:'aac',bitrate:160,formatId:'aac-160',duration:286,label:'AAC · 160 kbps · reported'}], message: 'Review available lower-quality audio.', updated: Date.now() - 360000 });
   store.put('runs', 'demo-run', { id: 'demo-run', linkId: link.id, started: Date.now() - 420000, finished: Date.now() - 360000, status: 'complete', ready: 2, attention: 4 });
 }
 

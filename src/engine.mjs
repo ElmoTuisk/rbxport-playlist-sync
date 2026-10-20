@@ -14,13 +14,14 @@ export class Engine {
   }
   settings() {
     return { ytdlp: 'yt-dlp', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', musicFolder: '', cookiesFile: '', autoAnalyse: true,
-      quality:'strict-mp3-320', ...(this.store.get('settings', 'main') || {}) };
+      quality:'strict-mp3-320', allowLowerOfficial:true, ...(this.store.get('settings', 'main') || {}) };
   }
   saveSettings(value) {
     if (this.active) throw new Error('Wait for the current sync or cancel it before changing settings.');
     const current = this.settings();
     for (const key of ['ytdlp', 'ffmpeg', 'ffprobe', 'musicFolder', 'cookiesFile']) if (typeof value[key] === 'string') current[key] = value[key].trim();
     if (typeof value.autoAnalyse === 'boolean') current.autoAnalyse = value.autoAnalyse;
+    if (typeof value.allowLowerOfficial === 'boolean') current.allowLowerOfficial = value.allowLowerOfficial;
     if(value.quality!==undefined){if(!['strict-mp3-320','club-aac-256'].includes(value.quality))throw Error('Choose a supported audio standard.');current.quality=value.quality;}
     if (current.musicFolder && !isAbsolute(current.musicFolder)) throw new Error('Music folder must be an absolute path');
     this.store.put('settings', 'main', current); this.changed(); return current;
@@ -85,9 +86,14 @@ export class Engine {
       let match = track.unavailable ? { status: 'unavailable', reason: 'Source item unavailable', candidates: [] } : matchTrack(track, library.tracks, binding, targetIds);
       const jobId = createHash('sha256').update(this.bindingKey(link.libraryId, track.key)).digest('hex');
       const job = this.store.get('jobs', jobId);
+      // Playlist extraction already read the originals. Expose those choices now,
+      // without downloading or pretending an alternate-source search has happened.
+      if((!job || (job.status==='queued'&&!job.file&&!job.overrideUrl&&!job.sourcePath&&!job.qualityApproval&&!job.lowerOptions?.length)) && match.status==='missing' && !track.sourceAudio?.normal && track.sourceAudio?.lowerOptions?.length){
+        this.store.put('jobs',jobId,{...job,id:jobId,key:track.key,title:track.title,artist:track.artist,libraryId:link.libraryId,linkId:id,rowId:this.rowKey(id,track.key),status:'queued',created:job?.created || Date.now(),originalOnly:true,lowerOptions:track.sourceAudio.lowerOptions,message:'Lower-quality original stream available. Review quality or Sync to search for higher-quality sources.'});
+      }
       if (job?.status === 'queued' && (job.overrideUrl || job.sourcePath) && match.status === 'review') match = { status: 'missing', reason: 'Using your selected source; quality checks still apply', candidates: match.candidates };
       const previous = this.store.get('rows', this.rowKey(id, track.key));
-      rows.push({ ...previous, localId: undefined, reviewKind: match.status === 'review' ? 'match' : undefined, id: this.rowKey(id, track.key), linkId: id, position: rows.length, track, present: true, ...match });
+      rows.push({ ...previous, localId: undefined, reviewKind: match.status === 'review' ? 'match' : undefined, id: this.rowKey(id, track.key), linkId: id, position: rows.length, track, present: true, ...match, inTarget:Boolean(match.localId && targetIds.has(match.localId)) });
     }
     this.store.transaction(() => {
       for (const old of this.rows(id)) if (!seen.has(old.track.key)) this.store.put('rows', old.id, { ...old, present: false });
@@ -115,7 +121,7 @@ export class Engine {
           if (job?.file && job.status !== 'ready') {
             const result = await this.processTrack(link, row, signal); result ? run.ready++ : run.attention++; continue;
           }
-          await this.bridge.call('add', { libraryId: link.libraryId, playlistId: link.playlistId, ids: [row.localId] });
+          if(!row.inTarget)await this.bridge.call('add', { libraryId: link.libraryId, playlistId: link.playlistId, ids: [row.localId] });
           this.store.put('bindings', this.bindingKey(link.libraryId, row.track.key), { ...binding, localId: row.localId });
           this.store.put('rows', row.id, { ...row, status: 'ready', reason: 'Existing track linked' }); run.ready++;
         } else if (row.status === 'missing' || (retryMissing && row.status==='missing_file') || (row.status === 'review' && (this.downloads.soulseek?.enabled || retryMissing) && !row.candidates?.some(c => c.certain))) {
@@ -138,7 +144,7 @@ export class Engine {
       const current = this.store.get('links', id);
       const found = rows.filter(r => ['ready','matched'].includes(r.status)).length;
       const attention = rows.filter(r => !['ready','matched','ignored'].includes(r.status)).length;
-      this.store.put('links', id, { ...current, extraCount: run.extraCount ?? current.extraCount, lastSync: preview ? current.lastSync : Date.now(), status: preview ? 'preview' : run.attention ? 'attention' : 'synced', message: preview ? `${found} in collection · ${attention} need attention` : `${run.ready} ready · ${run.attention} need attention`, retryAt: null });
+      this.store.put('links', id, { ...current, extraCount: run.extraCount ?? current.extraCount, lastSync: preview ? current.lastSync : Date.now(), status: preview ? 'preview' : run.attention ? 'attention' : 'synced', message: preview ? `${found} in collection · ${attention} not linked. ${attention?'Click Sync to search and download.':'Ready to sync.'}` : `${run.ready} ready · ${run.attention} need attention`, retryAt: null });
     } catch (error) {
       run.status = signal.aborted ? 'cancelled' : 'failed'; run.message = error.message;
       const current = this.store.get('links', id);
@@ -165,7 +171,14 @@ export class Engine {
       else { this.store.put('rows', row.id, { ...row, status: 'review', reviewKind:'source', reason: job.message }); return false; }
       if (retrySoulseek && job.acquisition === 'soulseek' && !job.file) job = {...job,sourcePath:null,sourceReport:null};
     }
-    const update = fields => { job = { ...job, ...fields, updated: Date.now() }; this.store.put('jobs', id, job); this.changed(); };
+    let lastProgress=0;
+    const update = fields => {
+      const now=Date.now(),keys=Object.keys(fields);
+      if(keys.every(key=>job[key]===fields[key]))return;
+      const cosmetic=typeof fields.progress==='string' && keys.every(key=>['progress','status','message','attempts'].includes(key)) && (!fields.status || fields.status===job.status) && (!fields.message || fields.message===job.message);
+      if(cosmetic){if(fields.progress===job.progress || (now-lastProgress<250 && !/^100%/.test(fields.progress)))return;lastProgress=now;}
+      job = { ...job, ...fields, updated: now }; this.store.put('jobs', id, job); this.changed();
+    };
     try {
       if (!this.settings().musicFolder) throw new Error('Choose a music download folder in Settings.');
       if(job.file)try{await access(job.file);}catch(error){if(error.code!=='ENOENT')throw error;update({file:null,localId:null,analysed:false});}
@@ -195,7 +208,7 @@ export class Engine {
           }
         }
       }
-      else await this.downloads.verify(job.file, row.track, signal, true,{allowLower:Boolean(job.qualityApproval)});
+      else await this.downloads.verify(job.file, row.track, signal, true,{allowLower:Boolean(job.qualityApproval || (job.quality?.officialOriginal && this.settings().allowLowerOfficial))});
       signal.throwIfAborted();
       update({ status: 'importing', message: 'Importing verified file into rbxport' });
       const imported = await this.bridge.call('import', { libraryId: link.libraryId, paths: [job.file] });
@@ -210,7 +223,7 @@ export class Engine {
         await this.bridge.call('analyse', { libraryId: link.libraryId, id: local.id }); update({ analysed: true });
       }
       update({ status: 'ready', message: 'Ready in rbxport', progress: '' });
-      const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard)}:undefined;
+      const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard),officialOriginal:Boolean(job.quality.officialOriginal)}:undefined;
       this.store.put('rows', row.id, { ...row, localId: local.id, status: 'ready',audioQuality, reason: audioQuality?.belowStandard?`Ready · ${audioQuality.codec.toUpperCase()} ${Math.round(audioQuality.bitrate || 0)} kbps · quality exception`:'Downloaded, validated and imported' }); return true;
     } catch (error) {
       const status = signal.aborted ? 'cancelled' : ['QUALITY_REVIEW','LOWER_CONFIRM'].includes(error.code) || /Quality check/.test(error.message) ? 'review' : 'failed';
@@ -331,6 +344,7 @@ export class Engine {
       const jobId = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
       const job = this.store.get('jobs', jobId) || { id: jobId, key: row.track.key, title: row.track.title, artist: row.track.artist, libraryId: link.libraryId, linkId: link.id, rowId: id, created: Date.now() };
       job.linkId=link.id;job.rowId=id;
+      if(value.action!=='retry')job.originalOnly=false;
       if (value.action === 'source') {
         job.overrideUrl=mediaUrl(value.url);job.sourcePath=null;job.sourceReport=null;job.sourceUrl=null;job.file=null;job.acquisition='manual';job.qualityApproval=null;job.lowerOptions=[];job.analysed=false;job.needsAnalysis=false;job.localId=null;
         // Keep the URL before inspecting it so errors/restarts cannot erase the user's choice.
