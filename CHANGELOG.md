@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.2 — 2026-10-20
+
+- Require a visible, attached sidebar button before the launcher reports success. Retry while the window loads; show a clear failure if the sidebar cannot attach.
+- Detect eligible registered Store installations dynamically while excluding older builds such as 0.19.3 that lack the required library API. Preserve explicit executable selection, fail on an invalid explicit path, and retain standalone discovery.
+- Explain unsupported library commands instead of failing silently. Library identity checks still run before every library operation; no compatibility shortcut bypasses them.
+- Publish tagged setup packages and checksums through GitHub Actions only after both Windows and Linux tests pass.
+
 ## 0.10.1 — 2026-10-20
 
 - Stop showing an orange quality-choice warning from earlier web alternatives while a normal source/Soulseek fallback is searching, downloading or importing. Show current progress and keep transfer quality pending until the actual file passes verification.

@@ -63,7 +63,7 @@ export class Bridge {
       await this.request('Runtime.addBinding', { name: '__playlistSyncAction', executionContextId: context.id }, true);
       this.boundContext = context.id;
     }
-    if(this.hostInstalled){const result=await this.evaluate(`(()=>{const host=window.__rbxportPlaylistSync;if(!host || host.version!==${HOST_UI_VERSION})return {needsInstall:true};host.update(${JSON.stringify(model)});return {installed:true};})()`);if(!result?.needsInstall)return result;}
+    if(this.hostInstalled){const result=await this.evaluate(`(()=>{const host=window.__rbxportPlaylistSync;if(!host || host.version!==${HOST_UI_VERSION})return {needsInstall:true};host.update(${JSON.stringify(model)});const button=document.querySelector('#playlist-sync-button');return {installed:true,ready:!!button?.isConnected&&button.getClientRects().length>0};})()`);if(!result?.needsInstall)return result;}
     const result=await this.evaluate(`(${installHostUi.toString()})(${JSON.stringify(model)},${mountPanel.toString()},${JSON.stringify(css)},${fitPopover.toString()},${HOST_UI_VERSION})`);this.hostInstalled=true;return result;
   }
   replyHost(id, result, error) { return this.evaluate(`window.__rbxportPlaylistSync?.reply(${JSON.stringify(id)},${JSON.stringify(result ?? null)},${JSON.stringify(error || null)})`); }
@@ -84,7 +84,7 @@ export class Bridge {
     };
     if (!methods[method]) throw new Error('Unsupported add-on capability');
     // All variable data is serialized, never interpolated as executable source.
-    const expression = `(async()=>{try{const a=${JSON.stringify(args)};const invoke=window.__TAURI_INTERNALS__.invoke;const drives=await invoke('database_drives');const activeDrive=drives.find(d=>d.current);if(!activeDrive)throw Error('Cannot establish current library identity');const libraryId=activeDrive.masterDb.replaceAll('\\\\','/').toLowerCase();if(a.libraryId&&a.libraryId!==libraryId)throw Error('Wrong library; operation refused');${methods[method]}}catch(e){throw Error(e?.message||String(e))}})()`;
+    const expression = `(async()=>{try{const a=${JSON.stringify(args)};const invoke=window.__TAURI_INTERNALS__.invoke;let drives;try{drives=await invoke('database_drives');}catch(e){if(/(?:command.*database_drives.*not found|unknown command.*database_drives)/i.test(e?.message||String(e)))throw Error('This rbxport build lacks the library API required by Playlist Sync. Close it and open the Playlist Sync shortcut with a compatible installation (tested with rbxport 1.9.0).');throw e;}const activeDrive=drives.find(d=>d.current);if(!activeDrive)throw Error('Cannot establish current library identity');const libraryId=activeDrive.masterDb.replaceAll('\\\\','/').toLowerCase();if(a.libraryId&&a.libraryId!==libraryId)throw Error('Wrong library; operation refused');${methods[method]}}catch(e){throw Error(e?.message||String(e))}})()`;
     return this.request('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, false, method === 'analyse' ? 900000 : 120000);
   }
   close() {

@@ -9,11 +9,11 @@ export function fitPopover(viewport, anchor, panel, margin = 12) {
     top: Math.max(top + margin, Math.min(anchor.top, top + viewport.height - margin - height)) };
 }
 
-export const HOST_UI_VERSION=17;
-export function installHostUi(model, mountPanel, css, fitPopover, version=17) {
+export const HOST_UI_VERSION=18;
+export function installHostUi(model, mountPanel, css, fitPopover, version=18) {
   const key = '__rbxportPlaylistSync';
   if (window[key] && window[key].version !== version) window[key].dispose();
-  if (window[key]) { window[key].update(model); return { installed: true }; }
+  if (window[key]) { window[key].update(model);const button=document.querySelector('#playlist-sync-button'); return { installed: true,ready:!!button?.isConnected&&button.getClientRects().length>0 }; }
   const sheet = new CSSStyleSheet(); sheet.replaceSync(css); document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   let current = model, timer = null, layoutFrame = null, stopped = false;
   const popover = document.createElement('div'); popover.id = 'playlist-sync-popover'; popover.hidden = true;
@@ -121,5 +121,5 @@ export function installHostUi(model, mountPanel, css, fitPopover, version=17) {
   window[key] = { version, update(value) { const changed=value.revision!==current.revision || value.selectionRevision!==current.selectionRevision;current = value; if(!popover.hidden && changed)panel.update(value);if(changed)decorate(); if (value.open) open(); }, open, dispose,
     reply(id, result, error) { const p = pending.get(id); if (!p) return; clearTimeout(p.timeout); pending.delete(id); error ? p.reject(Error(error)) : p.resolve(result); } };
   decorate(); if (model.open) open();
-  return { installed: true, visiblePlaylistBadges: document.querySelectorAll('[data-playlist-sync-badge]').length };
+  return { installed: true, ready: !!toolbar.isConnected && toolbar.getClientRects().length>0, visiblePlaylistBadges: document.querySelectorAll('[data-playlist-sync-badge]').length };
 }

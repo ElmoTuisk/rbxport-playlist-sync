@@ -39,7 +39,7 @@ function Get-VerifiedDownload {
     Move-Item -LiteralPath $temporary -Destination $destination -Force
     return $destination
 }
-Write-Host 'Installing Playlist Sync 0.10.1 for your Windows account. Administrator access is not required.'
+Write-Host 'Installing Playlist Sync 0.10.2 for your Windows account. Administrator access is not required.'
 $nodeDownload = Get-VerifiedDownload $manifest.node.url $manifest.node.sha256 'node.exe'
 $ytdlpDownload = Get-VerifiedDownload $manifest.ytdlp.url $manifest.ytdlp.sha256 'yt-dlp.exe'
 $ffmpegDownload = Get-VerifiedDownload $manifest.ffmpeg.url $manifest.ffmpeg.sha256 'ffmpeg-essentials.zip'
@@ -69,7 +69,7 @@ foreach ($item in $include) {
         Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $target -Recurse -Force
     } else { Copy-Item -LiteralPath $source -Destination $InstallDirectory -Force }
 }
-@{ dataDirectory = $DataDirectory; version = '0.10.1' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InstallDirectory 'installed.json') -Encoding UTF8
+@{ dataDirectory = $DataDirectory; version = '0.10.2' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InstallDirectory 'installed.json') -Encoding UTF8
 & (Join-Path $runtime 'node.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'The private runtime did not start.' }
 if (-not $NoShortcuts) {

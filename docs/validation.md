@@ -2,6 +2,12 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## Launcher/sidebar detection 0.10.2
+
+All 130 tests passed on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. Isolated PowerShell fixtures cover excluding Store 0.19.3, selecting an eligible registered package, explicit executable precedence, invalid explicit paths, delayed button readiness, permanently missing buttons, bounded retries and immediate incompatible-build failure. Renderer checks distinguish script installation from a visible attached button, including subsequent detachment. Bridge checks reject missing library identity commands before any library operation.
+
+Earlier inspection found the add-on service stopped and Store rbxport 0.19.3 running without its automation port. A normal relaunch enabled the port but confirmed that build lacks `database_drives`, so the add-on could not safely identify the current library. The installed standalone 1.9.0 has that API. No live library access, app restart or desktop control was used in this code-only verification round. The changed launcher and sidebar attachment still require a user-initiated launch for live confirmation; this record does not claim the currently running window was repaired.
+
 ## Quality status precedence 0.10.1
 
 The reported example's web searches found lower-quality AAC/Opus alternatives, then Soulseek supplied a different MP3. Independent ffprobe checks confirmed 320 kbps for both the received source and published file, both 222.18449 seconds. Their compressed audio packet hashes matched, so the add-on did not upscale/re-encode this example. This establishes encoding and packet preservation, not the history of the original recording.

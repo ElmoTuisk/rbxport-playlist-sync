@@ -66,7 +66,11 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       case 'select': if (!store.get('links', args.id)) throw Error('Unknown playlist link'); selected = args.id; selectionRevision++; changed(); break;
       case 'options': hostInfo = demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'); changed(); break;
       case 'official': {const row=store.get('rows',args.id);if(row?.track.provider!=='soundcloud')throw Error('No SoundCloud source for this song');return {externalUrl:row.track.url};}
-      case 'connect': await bridge.connect(); await syncHost(); changed(); break;
+      case 'connect': {
+        await bridge.connect(); const result=await syncHost(); changed();
+        if(!result?.ready)throw Error('The Playlist Sync sidebar button is not visible yet. Wait for rbxport to finish loading and try again; this layout may require an add-on update.');
+        return result;
+      }
       case 'sync': startSync(args.id); break;
       case 'recheck': startSync(args.id, true, true); break;
       case 'fallback': if (!soulseek.enabled) throw Error('Connect Soulseek in Settings first.'); startSync(args.id,false,true,true); break;

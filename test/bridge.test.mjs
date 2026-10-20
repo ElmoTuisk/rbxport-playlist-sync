@@ -48,4 +48,8 @@ test('native command expressions compile with serialized untrusted arguments', a
   };
   await new Function('window', `return ${expressions.at(-1)}`)({ __TAURI_INTERNALS__: { invoke } });
   assert.equal(reordered, true);
+  let wrote=false;
+  const unsupported={__TAURI_INTERNALS__:{async invoke(name){if(name==='database_drives')throw 'Command database_drives not found';wrote=true;}}};
+  await assert.rejects(new Function('window',`return ${expressions.at(-1)}`)(unsupported),/lacks the library API.*1\.9\.0/);
+  assert.equal(wrote,false,'An unsupported host must fail before any library action');
 });
