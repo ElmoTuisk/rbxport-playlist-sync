@@ -63,6 +63,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       if (bridge.libraryReady) {
         const removed = engine.reconcilePlaylists(hostInfo);
         if (removed.includes(selected)) { selected = null; selectionRevision++; }
+        engine.recoverHostConnection(hostInfo);
       }
       if (!bridge.connected) throw Error(connectionError);
       const result = await bridge.updateHost({ ...panelModel(), open }, css);

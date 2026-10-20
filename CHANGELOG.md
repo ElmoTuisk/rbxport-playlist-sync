@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.4 — 2026-10-20
+
+- Clear stale playlist failures caused by the old host's missing `database_drives` command after a successful connection to the same library and existing target. Show a neutral refresh prompt instead of leaving the old failure under the playlist.
+- Preserve historical failures, unrelated provider/audio errors, other libraries and saved song decisions. Reconnecting does not mark songs downloaded or certify their current files.
+- Remove injected-script stack frames from new host diagnostics while retaining their useful error message.
+
 ## 0.10.3 — 2026-10-20
 
 - Attach the sidebar independently of library validation. Unsupported library APIs now show a diagnostic in the popup instead of preventing the button from appearing.

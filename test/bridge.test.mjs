@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Bridge } from '../src/bridge.mjs';
+import { Bridge, hostErrorMessage } from '../src/bridge.mjs';
 import { installHostUi, fitPopover } from '../src/host-ui.mjs';
 import { mountPanel } from '../public/panel.mjs';
+
+test('host diagnostics omit injected script stacks without dropping the useful error', () => {
+  assert.equal(hostErrorMessage({ exception: { description: 'Error: Command database_drives not found\n    at <anonymous>:1:673' } }), 'Command database_drives not found');
+  assert.equal(hostErrorMessage({ exception: { description: 'Error: Wrong library; operation refused\n    at <anonymous>:1:42' } }), 'Wrong library; operation refused');
+  assert.equal(hostErrorMessage({ text: 'Connection unavailable' }), 'Connection unavailable');
+  assert.equal(hostErrorMessage({}), 'rbxport operation failed');
+});
 
 test('UI transport attaches before optional library validation, with guarded validation still the default', async t => {
   t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => [{ type: 'page', url: 'http://tauri.localhost/', webSocketDebuggerUrl: 'ws://127.0.0.1:43822/fixture' }] }));

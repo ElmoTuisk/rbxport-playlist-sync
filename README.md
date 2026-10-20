@@ -6,7 +6,7 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 Reliability is tested across different playlist types, with downloads, existing-file reuse and quality holds counted separately. See the [playlist testing criteria](docs/playlist-testing.md). The roughly 95% automatic-completion target has not yet been established across a complete test set.
 
-**Windows x64 · Experimental v0.10.3 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.10.4 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
@@ -23,7 +23,7 @@ Reliability is tested across different playlist types, with downloads, existing-
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.3-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.4-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -34,6 +34,8 @@ For future sessions, use the **Playlist Sync** Desktop or Start Menu shortcut. I
 The sidebar entry is attached by the running add-on; launching rbxport alone does not start it. The launcher now checks that the button is visible before claiming success. Compatible Store packages are resolved from their current registered location; the older Store build 0.19.3 lacks the required library API and is excluded from automatic selection. Your compatible standalone installation remains available. Only rbxport 1.9.0 has been tested end to end; package discovery is not a guarantee of compatibility with later releases.
 
 The sidebar now attaches even when the library compatibility check fails. Its popup explains the problem and pauses library actions instead of disappearing. Saved links stay intact, and a successful reconnect restores the controls. This does not add syncing support to an incompatible host.
+
+After a successful reconnect to the same library, old playlist errors about the missing `database_drives` command are replaced with **Connection restored · Recheck files or Sync**. The old failure remains in history. A reconnect alone does not recheck songs; **Recheck files** refreshes saved song matches without downloads or playlist writes.
 
 ## Link your first playlist
 

@@ -2,6 +2,14 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## Stale playlist host error recovery 0.10.4
+
+The live local API reported a healthy library connection with no current connection error, while the reported UKG link still held an earlier failed-run message: `Command database_drives not found` plus an injected-script stack. This established that the per-playlist warning was stale, rather than a new failed connection.
+
+Regression coverage checks recovery through both the engine and server: only known host-capability failures for an existing target in the successfully verified current library are cleared. Active/pending-unlink targets, other libraries, incomplete snapshots and unrelated provider errors are retained. Historical failed runs and song decisions remain unchanged; recovery performs no host operations or downloads and does not change last-check/last-sync evidence. Host diagnostics retain the error while removing injected stack frames.
+
+All 135 local Windows tests passed with real FFmpeg/ffprobe and DPAPI enabled; none skipped. Applying the fix to the user's service immediately replaced the stale failure with the neutral recovery prompt. A subsequent cached, read-only UKG recheck found all 46 source songs already in the collection, with zero needing attention. Independent before/after target-ID checks confirmed that all 56 target entries and their order were unchanged. The run was preview-only with zero additions; no downloads/imports were requested and automatic scheduling stayed paused.
+
 ## Sidebar attachment independent of library validation 0.10.3
 
 All 133 tests passed locally on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. New tests exercise transport attachment before library validation, default guarded validation, an unsupported library that still receives the sidebar model, concurrent connect/open requests, blocked library actions through both API forms, saved link/binding preservation, recovery and repeated capability loss. The actual renderer escapes diagnostics, disables sync/link controls and refreshes connection state even with a focused input. Diagnostic startup pauses automatic scheduling without changing saved preferences.

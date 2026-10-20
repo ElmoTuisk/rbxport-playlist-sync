@@ -66,6 +66,21 @@ export class Engine {
   rowKey(linkId, key) { return `${linkId}|${key}`; }
   bindingKey(libraryId, key) { return `${libraryId}|${key}`; }
   rows(linkId) { return this.store.all('rows').filter(r => r.linkId === linkId && r.present).sort((a, b) => (a.position || 0) - (b.position || 0)); }
+  recoverHostConnection(info) {
+    if (!info?.libraryId || !Array.isArray(info.playlists) || info.playlists.some(p => !p?.id)) return [];
+    const targets = new Set(info.playlists.map(p => p.id)), recovered = [];
+    for (const link of this.store.all('links')) {
+      if (link.libraryId !== info.libraryId || !targets.has(link.playlistId) || link.status !== 'failed' || this.active === link.id || this.pendingUnlinks.has(link.id)) continue;
+      // Recover only the known host capability failure. Provider/audio errors
+      // remain actionable, and connecting alone does not certify saved songs.
+      const message = String(link.message || '').replace(/^Error:\s*/, '');
+      if (!/^(?:Command\s+database_drives\s+not found|Unknown command\s+database_drives|This rbxport build lacks the library API required by Playlist Sync\.)/i.test(message)) continue;
+      this.store.put('links', link.id, { ...link, status: 'preview', message: 'rbxport connection restored. Recheck files or Sync to refresh this playlist.' });
+      recovered.push(link.id);
+    }
+    if (recovered.length) this.changed();
+    return recovered;
+  }
   reconcilePlaylists(info) {
     if(!info?.libraryId || !Array.isArray(info.playlists) || info.playlists.some(p=>!p?.id))return [];
     const targets=new Set(info.playlists.map(p=>p.id)),removed=[];

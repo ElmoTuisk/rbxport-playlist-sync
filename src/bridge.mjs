@@ -2,6 +2,10 @@
 // Use only its existing guarded commands; never open or write master.db ourselves.
 import { mountPanel } from '../public/panel.mjs';
 import { installHostUi, fitPopover, HOST_UI_VERSION } from './host-ui.mjs';
+export function hostErrorMessage(details) {
+  const description = details?.exception?.description || details?.text || 'rbxport operation failed';
+  return String(description).split(/\r?\n\s*at\s/)[0].replace(/^Error:\s*/, '').trim();
+}
 export class Bridge {
   constructor(changed = () => {}) { this.socket = null; this.pending = new Map(); this.sequence = 0; this.changed = changed; this.contexts = new Map(); }
   get connected() { return this.socket?.readyState === WebSocket.OPEN; }
@@ -28,7 +32,7 @@ export class Bridge {
       const pending = this.pending.get(message.id); if (!pending) return;
       clearTimeout(pending.timer); this.pending.delete(message.id);
       if (message.error) pending.reject(new Error(message.error.message));
-      else if (message.result?.exceptionDetails) pending.reject(new Error(message.result.exceptionDetails.exception?.description || 'rbxport operation failed'));
+      else if (message.result?.exceptionDetails) pending.reject(new Error(hostErrorMessage(message.result.exceptionDetails)));
       else pending.resolve(pending.raw ? message.result : message.result?.result?.value);
     });
     socket.addEventListener('close', () => { this.close(); this.changed(); });

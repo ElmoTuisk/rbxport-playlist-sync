@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 20 October 2026. Current release: **v0.10.3**, experimental Windows x64 add-on for rbxport.
+Updated 20 October 2026. Current release: **v0.10.4**, experimental Windows x64 add-on for rbxport.
 
 [Install and use](README.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -35,6 +35,8 @@ The Playlist Sync shortcut starts the host with its connection enabled. Launchin
 
 v0.10.3 separates sidebar attachment from library validation. A failed library check leaves the sidebar available with a diagnostic and disabled library actions; saved links are preserved. This is diagnostic visibility, not syncing compatibility with Store 0.19.3.
 
+v0.10.4 clears saved playlist failures caused by that missing API once the same library and target reconnect successfully. It retains historical errors and asks for a file recheck instead of marking songs ready merely because the connection recovered.
+
 ## Code map
 
 | Location | Responsibility |
@@ -52,11 +54,13 @@ v0.10.3 separates sidebar attachment from library validation. A failed library c
 
 ## Validation and current status
 
-v0.10.2 passed **130 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. Its GitHub Windows/Linux checks and release publication also succeeded. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
+v0.10.4 passed **135 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. The preceding v0.10.3 GitHub Windows/Linux checks and release publication also succeeded. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
 
 The mainstream EDM playlist exercised successful Soulseek acquisition and embedded covers. One reported 320 kbps download was independently checked: its source/output codec, bitrate and duration matched and its compressed audio packet hash was unchanged. Discovery audits covered five linked playlist snapshots; these were not five complete acquisition benchmarks.
 
 With fresh user authorization, the patched service restored a visible sidebar button in the running Store 0.19.3 window while correctly blocking its unsupported library API. A normal close/relaunch into the installed rbxport 1.9.0 then verified both a visible button and successful guarded library connection. Five saved links remained, with no active sync or new downloads. Automatic sync was paused for the diagnostic session; saved scheduling preferences were retained.
+
+The following UKG warning was confirmed to be an old saved failure rather than a current connection error. After recovery, a cached file recheck matched all 46 source songs. All 56 target entries and their order were independently confirmed unchanged; no audio was acquired or imported.
 
 The game-music playlist was a test reference only. No game-music audio should be acquired/imported as part of that test.
 

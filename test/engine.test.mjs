@@ -7,6 +7,29 @@ import {createHash} from 'node:crypto';
 import { Store } from '../src/store.mjs';
 import { Engine } from '../src/engine.mjs';
 
+test('a recovered host clears only stale capability failures for the verified current target', async t => {
+  const f = await fixture(t), original = f.store.get('links', f.link.id);
+  const initialCalls = [...f.calls];
+  const failed = { ...original, status: 'failed', message: 'Error: Command database_drives not found\n    at <anonymous>:1:673' };
+  f.store.put('links', failed.id, failed);
+  f.store.put('runs', 'history', { linkId: failed.id, status: 'failed', message: failed.message });
+  f.store.put('links', 'other-library', { ...failed, id: 'other-library', libraryId: 'other' });
+  f.store.put('links', 'missing-target', { ...failed, id: 'missing-target', playlistId: 'gone' });
+  f.store.put('links', 'provider', { ...failed, id: 'provider', message: 'Provider rate limit' });
+  const snapshot = { libraryId: 'test', playlists: [{ id: 'target' }] };
+  for (const info of [null, {}, { libraryId: 'test' }, { libraryId: 'test', playlists: [null] }]) assert.deepEqual(f.engine.recoverHostConnection(info), []);
+  f.engine.active = failed.id; assert.deepEqual(f.engine.recoverHostConnection(snapshot), []); f.engine.active = null;
+  assert.deepEqual(f.engine.recoverHostConnection(snapshot), [failed.id]);
+  const recovered = f.store.get('links', failed.id);
+  assert.equal(recovered.status, 'preview'); assert.match(recovered.message, /connection restored.*Recheck files/);
+  assert.equal(recovered.lastSync, failed.lastSync); assert.equal(recovered.lastCheck, failed.lastCheck);
+  assert.equal(f.store.get('runs', 'history').message, failed.message, 'Historical failures remain intact');
+  for (const id of ['other-library','missing-target','provider']) assert.equal(f.store.get('links', id).status, 'failed');
+  assert.deepEqual(f.engine.recoverHostConnection(snapshot), [], 'Recovery is idempotent');
+  assert.deepEqual(f.calls, initialCalls, 'Recovery itself performs no library operations or downloads');
+  assert.equal(f.acquisitions(), 0);
+});
+
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'playlist-sync-test-')); const path = join(dir, 'audio.mp3'); await writeFile(path, 'fixture');
   const store = new Store(join(dir, 'state.sqlite'));

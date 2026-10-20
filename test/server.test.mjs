@@ -27,7 +27,7 @@ test('a failed library check still attaches the sidebar, preserves links and blo
   const headers = { Authorization: `Bearer ${app.token}`, 'Content-Type': 'application/json' };
   const post = (path, body) => fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
   const connect = () => post('/api/action', { action: 'connect' });
-  const link = { id: 'saved', libraryId: 'fixture', playlistId: 'target', name: 'Saved playlist', automatic: false };
+  const link = { id: 'saved', libraryId: 'fixture', playlistId: 'target', name: 'Saved playlist', automatic: false, status: 'failed', message: 'Error: Command database_drives not found\n    at <anonymous>:1:673' };
   app.store.put('links', link.id, link);
   app.store.put('bindings', 'kept', { localId: 'existing', libraryId: 'fixture' });
   const results = await Promise.all([connect(), post('/api/ui/open', {})]);
@@ -52,11 +52,13 @@ test('a failed library check still attaches the sidebar, preserves links and blo
   const recovered = await (await connect()).json();
   assert.equal(recovered.ready, true); assert.equal(recovered.libraryReady, true); assert.equal(recovered.connectionError, '');
   const state = await (await fetch(base + '/api/state', { headers })).json(); assert.equal(state.connected, true);
-  assert.deepEqual(app.store.get('links', link.id), link);
+  const recoveredLink = app.store.get('links', link.id);
+  assert.equal(recoveredLink.status, 'preview'); assert.match(recoveredLink.message, /connection restored/);
+  assert.equal(recoveredLink.libraryId, link.libraryId); assert.equal(recoveredLink.playlistId, link.playlistId);
   supported = false;
   await connect();
   assert.equal((await (await fetch(base + '/api/state', { headers })).json()).connected, false);
-  assert.deepEqual(app.store.get('links', link.id), link, 'Losing library capability must not reconcile saved playlists as deleted');
+  assert.deepEqual(app.store.get('links', link.id), recoveredLink, 'Losing library capability must not reconcile saved playlists as deleted');
   assert(calls.every(method => method === 'info'));
 });
 test('local API requires pairing, rejects cross-origin requests and keeps demo read-only', async t => {
