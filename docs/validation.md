@@ -2,6 +2,10 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## README layout refresh — documentation only
+
+GitHub's Markdown API successfully rendered the shortened README and the preserved detailed usage guide. The rendered README contains eight balanced, initially collapsed details/summary sections. A local check verified 30 relative file/image references and linked heading targets across the README, usage guide and project overview. Default visible text fell from roughly 3,000 words to roughly 300, including topic summaries; both screenshots and the quick-start installation steps remain. No runtime code changed, so the application test suite was not rerun for this documentation-only update.
+
 ## Stale playlist host error recovery 0.10.4
 
 The live local API reported a healthy library connection with no current connection error, while the reported UKG link still held an earlier failed-run message: `Command database_drives not found` plus an injected-script stack. This established that the per-playlist warning was stale, rather than a new failed connection.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Shorten the GitHub README to a quick start, screenshots and feature overview, with eight expandable help topics. Keep the longer instructions in `docs/usage.md`.
+
 ## 0.10.4 — 2026-10-20
 
 - Clear stale playlist failures caused by the old host's missing `database_drives` command after a successful connection to the same library and existing target. Show a neutral refresh prompt instead of leaving the old failure under the playlist.

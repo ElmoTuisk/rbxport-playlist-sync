@@ -2,7 +2,7 @@
 
 Updated 20 October 2026. Current release: **v0.10.4**, experimental Windows x64 add-on for rbxport.
 
-[Install and use](README.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
+[Quick start](README.md) · [Detailed usage](docs/usage.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
 ## Purpose and product direction
 
