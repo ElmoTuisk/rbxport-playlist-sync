@@ -2,6 +2,12 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## Sidebar attachment independent of library validation 0.10.3
+
+All 133 tests passed locally on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. New tests exercise transport attachment before library validation, default guarded validation, an unsupported library that still receives the sidebar model, concurrent connect/open requests, blocked library actions through both API forms, saved link/binding preservation, recovery and repeated capability loss. The actual renderer escapes diagnostics, disables sync/link controls and refreshes connection state even with a focused input. Diagnostic startup pauses automatic scheduling without changing saved preferences.
+
+The user explicitly authorized restarting the service and rbxport for live verification. The service had been stopped while Store rbxport 0.19.3 was running with its automation port enabled. Starting the patched service restored the sidebar button: the connected DOM element measured within the visible viewport and used UI version 19. Library readiness remained false, correctly reporting the missing API. A normal close and launch into installed rbxport 1.9.0 then returned both visible sidebar readiness and successful guarded library readiness. All five saved links remained and no sync was active. Automatic scheduling stayed paused for this connection-only session; no audio downloads or host playlist writes were requested. This verifies the reported installation, not universal compatibility.
+
 ## Launcher/sidebar detection 0.10.2
 
 All 130 tests passed on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. Isolated PowerShell fixtures cover excluding Store 0.19.3, selecting an eligible registered package, explicit executable precedence, invalid explicit paths, delayed button readiness, permanently missing buttons, bounded retries and immediate incompatible-build failure. Renderer checks distinguish script installation from a visible attached button, including subsequent detachment. Bridge checks reject missing library identity commands before any library operation.

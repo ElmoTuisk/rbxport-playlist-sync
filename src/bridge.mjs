@@ -5,8 +5,8 @@ import { installHostUi, fitPopover, HOST_UI_VERSION } from './host-ui.mjs';
 export class Bridge {
   constructor(changed = () => {}) { this.socket = null; this.pending = new Map(); this.sequence = 0; this.changed = changed; this.contexts = new Map(); }
   get connected() { return this.socket?.readyState === WebSocket.OPEN; }
-  async connect() {
-    if (this.connected) return this.call('info');
+  async connect({ verifyLibrary = true } = {}) {
+    if (this.connected) return verifyLibrary ? this.call('info') : { attached: true };
     const response = await fetch('http://127.0.0.1:43822/json/list', { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error('Launch rbxport using Start-Playlist-Sync.ps1 first.');
     const pages = await response.json();
@@ -40,7 +40,8 @@ export class Bridge {
     const tree = await this.request('Page.getFrameTree', {}, true);
     this.mainFrameId = tree.frameTree.frame.id;
     await this.request('Runtime.enable', {}, true);
-    const info = await this.call('info'); this.changed(); return info;
+    this.changed();
+    return verifyLibrary ? this.call('info') : { attached: true };
   }
   request(method, params, raw = false, timeout = 120000) {
     if (!this.connected) return Promise.reject(new Error('rbxport disconnected'));
@@ -88,6 +89,7 @@ export class Bridge {
     return this.request('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, false, method === 'analyse' ? 900000 : 120000);
   }
   close() {
+    this.libraryReady = false;
     const socket = this.socket; this.socket = null; socket?.close();
     for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('rbxport disconnected')); }
     this.pending.clear();

@@ -45,7 +45,7 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
 if (-not $serviceReady) { throw "The service did not start. See $stateDirectory\service-error.log" }
 $launchUrl = (Get-Content -LiteralPath $launchFile -Raw).Trim()
 $windowArguments = Get-PlaylistSyncWindowArguments $launchUrl (Join-Path $stateDirectory 'window-profile')
-$null = Connect-PlaylistSyncHost $launchUrl
+$hostConnection = Connect-PlaylistSyncHost $launchUrl
 if (-not $NoWindow) {
     if ($Detached) { Start-Process -FilePath $browserPath -ArgumentList $windowArguments }
     else {
@@ -61,4 +61,8 @@ if (-not $NoWindow) {
         if (-not $opened) { throw 'Could not attach Playlist Sync to rbxport. Close rbxport normally and open the Playlist Sync shortcut again.' }
     }
 }
-Write-Output 'Playlist Sync is running. Open it under Tag List on the left in rbxport, or click the symbol beside a linked playlist.'
+if ($hostConnection.libraryReady -eq $false) {
+    Write-Warning ('Playlist Sync is visible, but syncing is paused. ' + $hostConnection.connectionError)
+} else {
+    Write-Output 'Playlist Sync is running. Open it under Tag List on the left in rbxport, or click the symbol beside a linked playlist.'
+}

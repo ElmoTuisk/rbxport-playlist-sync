@@ -45,11 +45,15 @@ try {
         $script:connectCalls++
         Assert-Desktop ($Uri -eq 'http://127.0.0.1:43821/api/action') 'Connection check must stay local'
         if ($script:connectMode -eq 'unsupported') { throw 'This rbxport build lacks the library API required by Playlist Sync.' }
+        if ($script:connectMode -eq 'limited') { return @{ready=$true;libraryReady=$false;connectionError='Library API unavailable'} }
         if ($script:connectMode -eq 'missing' -or $script:connectCalls -eq 1) { return @{ready=$false} }
         return @{ready=$true}
     }
     Assert-Desktop ((Connect-PlaylistSyncHost "http://127.0.0.1:43821/#$token").ready) 'A loading window should recover when its button appears'
     Assert-Desktop ($script:connectCalls -eq 2) 'Launcher must wait for the button rather than only HTTP availability'
+    $script:connectMode='limited'; $script:connectCalls=0
+    $limited = Connect-PlaylistSyncHost "http://127.0.0.1:43821/#$token"
+    Assert-Desktop ($limited.ready -and -not $limited.libraryReady) 'A visible diagnostic popup is allowed without enabling library work'
     foreach ($mode in @('missing','unsupported')) {
         $script:connectMode=$mode; $script:connectCalls=0; $rejected=$false
         try { $null=Connect-PlaylistSyncHost "http://127.0.0.1:43821/#$token" } catch { $rejected=$true }

@@ -20,6 +20,23 @@ function fixture(send=async()=>({ok:true})) {
   return {root, document, initial, controller, click,events};
 }
 
+test('an unavailable library shows its escaped diagnostic, blocks syncing and recovers while an input has focus', async () => {
+  const calls = [], f = fixture(async (action) => { calls.push(action); return { ok: true }; });
+  const offline = { ...f.initial, connected: false, selected: 'a', selectionRevision: 2, connectionError: 'Library API unavailable <fixture>' };
+  f.controller.update(offline);
+  assert.match(f.root.innerHTML, /Library API unavailable &lt;fixture&gt;/);
+  assert.match(f.root.innerHTML, /data-action="sync"[^>]*disabled/);
+  assert.match(f.root.innerHTML, /data-action="link"[^>]*disabled/);
+  assert.match(f.root.innerHTML, /data-automatic="a"[^>]*disabled/);
+  await f.click('sync', 'a'); assert.equal(calls.length, 0);
+  await f.click('settings'); assert.match(f.root.innerHTML, /data-form="settings"/);
+  await f.click('connect'); assert.deepEqual(calls, ['connect']);
+  f.document.activeElement = { tagName: 'INPUT' };
+  f.controller.update({ ...offline, connected: true, connectionError: '' });
+  assert.doesNotMatch(f.root.innerHTML, /Library API unavailable/);
+  assert.doesNotMatch(f.root.innerHTML, /data-action="sync"[^>]*disabled/);
+});
+
 test('Resolve opens immediately after the chosen song in a long missing-track list', async () => {
   const {root, initial, controller, click} = fixture();
   controller.update({...initial, selected:'a', selectionRevision:2});

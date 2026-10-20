@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.3 — 2026-10-20
+
+- Attach the sidebar independently of library validation. Unsupported library APIs now show a diagnostic in the popup instead of preventing the button from appearing.
+- Keep saved links/bindings intact on connection failures, block library actions while unavailable, remove stale host badges and recover controls after a successful reconnect. Every host library command retains its identity guard.
+- Coalesce startup connection requests and retain a concurrent popup-open request. Distinguish visible UI readiness from library readiness in launcher results.
+- Add `--pause-automatic` for connection-only diagnostic sessions without changing saved automatic-sync preferences.
+
 ## 0.10.2 — 2026-10-20
 
 - Require a visible, attached sidebar button before the launcher reports success. Retry while the window loads; show a clear failure if the sidebar cannot attach.

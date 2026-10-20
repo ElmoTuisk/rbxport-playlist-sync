@@ -465,13 +465,13 @@ export class Engine {
   }
   cancel() { this.controller?.abort(); }
   schedule() {
-    clearTimeout(this.timer); if (this.active || this.closed) return;
+    clearTimeout(this.timer); if (this.active || this.closed || this.automaticEnabled === false) return;
     const links = this.store.all('links').filter(l => l.automatic&&!this.pendingUnlinks.has(l.id));
     if (!links.length) return;
     const link = links.sort((a, b) => Math.max(a.nextCheck || 0, a.retryAt || 0) - Math.max(b.nextCheck || 0, b.retryAt || 0))[0];
     const delay = Math.max(10000, Math.max(link.nextCheck || 0, link.retryAt || 0) - Date.now());
     this.timer = setTimeout(() => {
-      if (!this.bridge.connected) { link.nextCheck = Date.now() + 60000; this.store.put('links', link.id, link); this.schedule(); return; }
+      if (!this.bridge.connected || this.bridge.libraryReady === false) { link.nextCheck = Date.now() + 60000; this.store.put('links', link.id, link); this.schedule(); return; }
       void this.sync(link.id).catch(() => this.schedule());
     }, delay); this.timer.unref?.();
   }

@@ -3,6 +3,25 @@ import assert from 'node:assert/strict';
 import { Bridge } from '../src/bridge.mjs';
 import { installHostUi, fitPopover } from '../src/host-ui.mjs';
 import { mountPanel } from '../public/panel.mjs';
+
+test('UI transport attaches before optional library validation, with guarded validation still the default', async t => {
+  t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => [{ type: 'page', url: 'http://tauri.localhost/', webSocketDebuggerUrl: 'ws://127.0.0.1:43822/fixture' }] }));
+  t.mock.property(globalThis, 'WebSocket', class {
+    static OPEN = 1;
+    readyState = 1;
+    addEventListener(name, callback) { if (name === 'open') queueMicrotask(callback); }
+    close() { this.readyState = 3; }
+  });
+  const bridge = new Bridge(); t.after(() => bridge.close());
+  const commands = [];
+  bridge.request = async method => { commands.push(method); return method === 'Page.getFrameTree' ? { frameTree: { frame: { id: 'main' } } } : {}; };
+  bridge.call = async method => { commands.push(method); throw Error('Missing library API'); };
+  assert.equal((await bridge.connect({ verifyLibrary: false })).attached, true);
+  assert.deepEqual(commands, ['Page.getFrameTree', 'Runtime.enable']);
+  assert.equal((await bridge.connect({ verifyLibrary: false })).attached, true);
+  await assert.rejects(bridge.connect(), /Missing library API/);
+  assert.deepEqual(commands, ['Page.getFrameTree', 'Runtime.enable', 'info']);
+});
 test('host actions are accepted only from the main rbxport page, not third-party or child frames', () => {
   const bridge = new Bridge(); bridge.mainFrameId = 'main';
   bridge.contexts.set(1, { origin: 'http://tauri.localhost', auxData: { frameId: 'main', isDefault: true } });

@@ -9,8 +9,8 @@ export function fitPopover(viewport, anchor, panel, margin = 12) {
     top: Math.max(top + margin, Math.min(anchor.top, top + viewport.height - margin - height)) };
 }
 
-export const HOST_UI_VERSION=18;
-export function installHostUi(model, mountPanel, css, fitPopover, version=18) {
+export const HOST_UI_VERSION=19;
+export function installHostUi(model, mountPanel, css, fitPopover, version=19) {
   const key = '__rbxportPlaylistSync';
   if (window[key] && window[key].version !== version) window[key].dispose();
   if (window[key]) { window[key].update(model);const button=document.querySelector('#playlist-sync-button'); return { installed: true,ready:!!button?.isConnected&&button.getClientRects().length>0 }; }
@@ -82,7 +82,7 @@ export function installHostUi(model, mountPanel, css, fitPopover, version=18) {
         const matches = current.playlists.filter(p => p.name === label.textContent);
         if (matches.length === 1) id = matches[0].id;
       }
-      const link = current.links.find(l => l.playlistId === id);
+      const link = current.connected === false ? null : current.links.find(l => l.playlistId === id);
       let badge = row.querySelector('[data-playlist-sync-badge]');
       if (!link) { badge?.remove(); continue; }
       if (!badge) {

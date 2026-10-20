@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 20 October 2026. Current release: **v0.10.2**, experimental Windows x64 add-on for rbxport.
+Updated 20 October 2026. Current release: **v0.10.3**, experimental Windows x64 add-on for rbxport.
 
 [Install and use](README.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -33,6 +33,8 @@ The Playlist Sync shortcut starts the host with its connection enabled. Launchin
 
 **Compatibility:** Windows rbxport 1.9.0 is the tested host. Store build 0.19.3 lacks the required `database_drives` library-identity command. v0.10.2 excludes that older package from automatic selection and verifies an attached, visible sidebar button before reporting launch success. Later builds still need compatibility checks; version-based discovery alone is not proof of compatibility.
 
+v0.10.3 separates sidebar attachment from library validation. A failed library check leaves the sidebar available with a diagnostic and disabled library actions; saved links are preserved. This is diagnostic visibility, not syncing compatibility with Store 0.19.3.
+
 ## Code map
 
 | Location | Responsibility |
@@ -54,13 +56,13 @@ v0.10.2 passed **130 local Windows tests** with real FFmpeg/ffprobe and DPAPI en
 
 The mainstream EDM playlist exercised successful Soulseek acquisition and embedded covers. One reported 320 kbps download was independently checked: its source/output codec, bitrate and duration matched and its compressed audio packet hash was unchanged. Discovery audits covered five linked playlist snapshots; these were not five complete acquisition benchmarks.
 
-The latest startup changes are installed in the source/portable files. **Restoration of the missing icon in the user's current window has not been verified.** Live desktop control was stopped at the user's request. Do not replace this distinction with a claim that the running app was repaired.
+With fresh user authorization, the patched service restored a visible sidebar button in the running Store 0.19.3 window while correctly blocking its unsupported library API. A normal close/relaunch into the installed rbxport 1.9.0 then verified both a visible button and successful guarded library connection. Five saved links remained, with no active sync or new downloads. Automatic sync was paused for the diagnostic session; saved scheduling preferences were retained.
 
 The game-music playlist was a test reference only. No game-music audio should be acquired/imported as part of that test.
 
 ## Next work
 
-1. Confirm the fixed startup/sidebar flow in a user-authorized live session with a compatible host, including a normal close/relaunch and a service restart.
+1. Continue testing startup/sidebar behavior across additional host versions and ordinary shortcut launches; the current user's sidebar and compatible connection were verified in the authorized session.
 2. Finish representative full acquisition runs and record denominators, actual source quality, retries, quality holds and completion time. Establish evidence before making a 95% claim.
 3. Improve compatibility diagnostics and investigate additional host versions without guessing the open library or weakening identity guards.
 4. Improve update cleanup: matching installed files are overwritten today, but obsolete program files are not removed automatically. Preserve saved data and music.

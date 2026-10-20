@@ -14,15 +14,17 @@ import { oauthPage } from './oauth-page.mjs';
 import { Soulseek } from './soulseek.mjs';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
-export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null } = {}) {
+export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null, bridgeClient = null, automaticSync = true } = {}) {
   await mkdir(dataDir, { recursive: true });
   const token = randomBytes(32).toString('hex');
   const store = new Store(join(dataDir, demo ? 'demo.sqlite' : 'sync.sqlite'));
   if (!store.get('settings', 'main')) store.put('settings', 'main', firstRunSettings(dataDir));
   let revision = 1; const listeners = new Set();
-  let runningSync = null, hostTimer = null, hostBusy = false, shuttingDown = false, selected = null, selectionRevision = 0, hostInfo = null, closeTask = null;
+  let runningSync = null, hostTimer = null, hostTask = null, shuttingDown = false, selected = null, selectionRevision = 0, hostInfo = null, closeTask = null;
+  let connectionError = '';
   const changed = () => { revision++; for (const wake of [...listeners]) wake(); clearTimeout(hostTimer); if (!demo && !shuttingDown) hostTimer = setTimeout(() => { void syncHost().catch(() => {}); }, 150); };
-  const bridge = new Bridge(changed);
+  const bridge = bridgeClient || new Bridge(changed);
+  bridge.libraryReady = false;
   let engine;
   const downloads = new Downloads(() => engine.settings());
   const soulseek = new Soulseek(dataDir,new Vault(dataDir,'soulseek'),downloads);
@@ -31,28 +33,48 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   await spotify.initialize();
   const providers = new Providers(spotify, downloads);
   engine = new Engine(store, providers, downloads, bridge, changed);
+  engine.automaticEnabled = automaticSync;
   if (demo) seedDemo(store);
   const css = await readFile(join(publicDir, 'style.css'), 'utf8');
-  const state = () => ({ revision, demo, connected: bridge.connected, active: engine.active,
+  const state = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active,
     links: store.all('links'), jobs: store.all('jobs').slice(-150).reverse(), runs: store.all('runs').slice(-50).reverse(), settings: engine.settings(),
     counts: store.all('rows').filter(r => r.present).reduce((out, row) => { out[row.status] = (out[row.status] || 0) + 1; return out; }, {}) });
-  const panelModel = () => ({ revision, demo, connected: bridge.connected, active: engine.active, selected, selectionRevision,
+  const panelModel = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active, selected, selectionRevision,
     expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(),
     links: store.all('links').filter(l => !engine.pendingUnlinks.has(l.id) && (demo || !hostInfo || l.libraryId === hostInfo.libraryId)).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
     rows: Object.fromEntries(selected ? [[selected, engine.rows(selected)]] : []),
     jobs: store.all('jobs').filter(j => j.linkId === engine.active || j.linkId === selected), playlists: hostInfo?.playlists || [] });
-  async function syncHost(open = false) {
-    if (demo || shuttingDown || hostBusy) return;
-    hostBusy = true;
-    try {
-      if (!bridge.connected) await bridge.connect();
-      hostInfo = await bridge.call('info');
-      const removed=engine.reconcilePlaylists(hostInfo);
-      if(removed.includes(selected)){selected=null;selectionRevision++;}
-      return await bridge.updateHost({ ...panelModel(), open }, css);
-    } finally { hostBusy = false; }
+  function syncHost(open = false) {
+    if (demo || shuttingDown) return Promise.resolve();
+    if (hostTask) return hostTask.then(result => open ? syncHost(true) : result);
+    hostTask = (async () => {
+      const previousReady = bridge.libraryReady, previousError = connectionError;
+      try {
+        // UI attachment does not require a library API. A capability failure must
+        // remain visible in the popup instead of hiding the add-on's entry point.
+        await bridge.connect({ verifyLibrary: false });
+        hostInfo = await bridge.call('info');
+        bridge.libraryReady = true; connectionError = '';
+      } catch (error) {
+        bridge.libraryReady = false; hostInfo = null;
+        connectionError = error.message || 'Could not connect to the rbxport library.';
+      }
+      if (previousReady !== bridge.libraryReady || previousError !== connectionError) changed();
+      if (bridge.libraryReady) {
+        const removed = engine.reconcilePlaylists(hostInfo);
+        if (removed.includes(selected)) { selected = null; selectionRevision++; }
+      }
+      if (!bridge.connected) throw Error(connectionError);
+      const result = await bridge.updateHost({ ...panelModel(), open }, css);
+      return { ...result, libraryReady: bridge.libraryReady, connectionError };
+    })().finally(() => { hostTask = null; });
+    return hostTask;
+  }
+  function requireLibrary() {
+    if (!bridge.connected || !bridge.libraryReady) throw Error(connectionError || 'Connect the rbxport library before syncing.');
   }
   function startSync(id, preview = false, cached = false, useSoulseek = false, retryMissing = false) {
+    requireLibrary();
     if (engine.active) throw Error('Another sync is running');
     const link = store.get('links', id); if (!link) throw Error('Unknown playlist link');
     if (!cached && link.retryAt > Date.now()) throw Error('Provider rate limit: try after ' + new Date(link.retryAt).toLocaleString());
@@ -62,12 +84,13 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   async function action(name, args = {}) {
     if (demo && !['select', 'options'].includes(name)) throw Error('Example data only');
     if (!args || typeof args !== 'object') throw Error('Invalid action');
+    if (['options','sync','recheck','fallback','retry-missing','automatic','link','resolve','match-plan','accept-matches','quality-plan','accept-quality'].includes(name) && !demo) requireLibrary();
     switch (name) {
       case 'select': if (!store.get('links', args.id)) throw Error('Unknown playlist link'); selected = args.id; selectionRevision++; changed(); break;
       case 'options': hostInfo = demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'); changed(); break;
       case 'official': {const row=store.get('rows',args.id);if(row?.track.provider!=='soundcloud')throw Error('No SoundCloud source for this song');return {externalUrl:row.track.url};}
       case 'connect': {
-        await bridge.connect(); const result=await syncHost(); changed();
+        const result=await syncHost(); changed();
         if(!result?.ready)throw Error('The Playlist Sync sidebar button is not visible yet. Wait for rbxport to finish loading and try again; this layout may require an add-on update.');
         return result;
       }
@@ -156,12 +179,13 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       if (demo) return json({ error: 'Preview data only. Start without --demo to connect accounts and sync.' }, 409);
       if (req.method === 'POST' && url.pathname === '/api/shutdown') { json({ ok: true }); setImmediate(() => { void close(); }); return; }
       if (req.method === 'POST' && url.pathname === '/api/ui/open') { const result = await syncHost(true); if (!result) throw Error('Connecting to rbxport; try again in a moment.'); return json(result); }
-      if (req.method === 'POST' && url.pathname === '/api/bridge/connect') return json(await bridge.connect());
+      if (req.method === 'POST' && url.pathname === '/api/bridge/connect') return json(await action('connect'));
       if (req.method === 'PATCH' && url.pathname === '/api/settings') return json(engine.saveSettings(body));
       if (req.method === 'POST' && url.pathname === '/api/spotify/connect') { const url = await spotify.authorize(body.clientId); changed(); return json({ url }); }
-      if (req.method === 'POST' && url.pathname === '/api/links') return json(await engine.addLink(body));
-      if (req.method === 'PATCH' && url.pathname === '/api/link') return json(engine.updateLink(body.id, body));
+      if (req.method === 'POST' && url.pathname === '/api/links') { requireLibrary(); return json(await engine.addLink(body)); }
+      if (req.method === 'PATCH' && url.pathname === '/api/link') { requireLibrary(); return json(engine.updateLink(body.id, body)); }
       if (req.method === 'POST' && url.pathname === '/api/sync') {
+        requireLibrary();
         if (engine.active) throw new Error('Another sync is running');
         const link = store.get('links', body.id);
         if (!link) throw new Error('Unknown link');
@@ -187,6 +211,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   function close() {
     closeTask ??= (async () => {
       shuttingDown = true; clearTimeout(hostTimer); clearInterval(heartbeat); engine.close();
+      await hostTask?.catch(() => {});
       if (bridge.connected) await bridge.removeHost().catch(() => {});
       bridge.close(); for (const wake of [...listeners]) wake(); server.closeAllConnections();
       await new Promise(resolve => server.close(resolve)); await runningSync?.catch(() => {});
@@ -216,7 +241,7 @@ function seedDemo(store) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const option = name => { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; };
-  const app = await startServer({ ...(option('--data-dir') ? { dataDir: resolve(option('--data-dir')) } : {}), demo: process.argv.includes('--demo') });
+  const app = await startServer({ ...(option('--data-dir') ? { dataDir: resolve(option('--data-dir')) } : {}), demo: process.argv.includes('--demo'), automaticSync: !process.argv.includes('--pause-automatic') });
   console.log(`Playlist Sync running on http://127.0.0.1:43821. Open the URL in ${join(option('--data-dir') || join(homedir(), '.rbxport-playlist-sync'), 'launch-url.txt')}`);
   for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { void app.close().then(() => process.exit(0)); });
 }

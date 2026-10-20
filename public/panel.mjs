@@ -7,7 +7,9 @@ export function mountPanel(root, initial, send) {
   const reviewDrafts={},reviewNotices={};let qualityPending=null;
   let jobsByRow=new Map((initial.jobs || []).map(job=>[job.rowId,job]));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${text}</button>`;
+  const libraryUnavailable = () => model.connected === false && !model.demo;
+  const libraryActions = new Set(['sync','recheck','fallback','retry-missing','link','bulk-open','bulk-confirm','quality-bulk-open','quality-bulk-confirm','lower-review','lower-confirm']);
+  const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}${libraryUnavailable() && libraryActions.has(action) ? ' disabled' : ''}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
   const needsHelp = row => !['ready', 'matched', 'ignored'].includes(row.status);
   const inProgress = row => ['searching','downloading','validating','importing','analysing'].includes(jobsByRow.get(row.id)?.status);
@@ -44,12 +46,13 @@ export function mountPanel(root, initial, send) {
     root.innerHTML = `<div class="ps-head"><strong>Playlist sync</strong><div>${button('settings', '⚙', '', 'aria-label="Sync settings" title="Settings"')}${button('close', '×', '', 'aria-label="Close playlist sync"')}</div></div>
       ${error ? `<p class="ps-error" role="alert">${esc(error)}</p>` : ''}
       ${model.demo ? '<p class="ps-muted">Example data</p>' : ''}
-      ${model.connected || model.demo ? '' : `<p class="ps-muted">rbxport is disconnected. ${button('connect', 'Reconnect')}</p>`}
+      ${model.automaticPaused ? '<p class="ps-muted">Automatic sync paused for this session.</p>' : ''}
+      ${model.connected || model.demo ? '' : `<p class="ps-muted" role="status">${esc(model.connectionError || 'rbxport is disconnected.')} ${button('connect', 'Reconnect')}</p>`}
       <div class="ps-list">${(model.links || []).map(link => {
         const progress = (model.jobs || []).find(j => j.linkId === link.id && ['searching','downloading','validating','importing','analysing'].includes(j.status));
         const status = model.active === link.id ? progress ? `${progress.title} · ${progress.status}${progress.progress ? ` ${progress.progress}` : ''}` : 'Checking playlist…' : link.message || 'Ready to check';
         return `<section class="ps-playlist"><div class="ps-line"><button class="ps-name" type="button" data-action="details" data-id="${esc(link.id)}" aria-expanded="${expanded === link.id}"><span class="ps-symbol ${link.status === 'synced' ? 'ps-good' : link.status === 'attention' || link.status === 'failed' ? 'ps-warn' : ''}" title="${esc(link.status === 'synced' ? 'Synced' : 'Linked playlist')}">⇄</span>${esc(link.name)}</button>${button('sync', 'Sync', link.id, model.active || busy ? 'disabled' : '')}</div><p class="ps-status">${esc(status)}</p>
-          ${expanded === link.id ? `<div class="ps-details"><label class="ps-check"><input type="checkbox" data-automatic="${esc(link.id)}" ${link.automatic ? 'checked' : ''}> Auto-sync</label>${link.extraCount ? `<p class="ps-muted">${link.extraCount} extra local songs kept at the bottom.</p>` : ''}
+          ${expanded === link.id ? `<div class="ps-details"><label class="ps-check"><input type="checkbox" data-automatic="${esc(link.id)}" ${link.automatic ? 'checked' : ''} ${libraryUnavailable() ? 'disabled' : ''}> Auto-sync</label>${link.extraCount ? `<p class="ps-muted">${link.extraCount} extra local songs kept at the bottom.</p>` : ''}
           <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>qualityOffer(r)?.pending) ? button('quality-bulk-open','Accept lower quality…',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
           ${bulkFor===link.id?bulkForm():''}${qualityFor===link.id?bulkQualityForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : inProgress(row)?'Details':qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
@@ -106,7 +109,10 @@ export function mountPanel(root, initial, send) {
   }
   async function act(action, value = {}) {
     error = ''; busy = true;
-    try { return await send(action, value); } catch (e) { error = e.message; }
+    try {
+      if (libraryUnavailable() && (libraryActions.has(action) || ['options','automatic','resolve','match-plan','accept-matches','quality-plan','accept-quality'].includes(action))) throw Error(model.connectionError || 'Connect the rbxport library before syncing.');
+      return await send(action, value);
+    } catch (e) { error = e.message; }
     finally { busy = false; render(true); }
   }
   root.addEventListener('click', async event => {
@@ -186,9 +192,10 @@ export function mountPanel(root, initial, send) {
     if (!error) { mode = ['spotify','soulseek'].includes(form.dataset.form) ? 'settings' : ''; reviewing = null; render(true); }
   });
   const controller = { update(value) {
+    const connectionChanged = value.connected !== model.connected || value.connectionError !== model.connectionError;
     const selectionChanged = value.selectionRevision !== model.selectionRevision && value.selected;
     if (selectionChanged) { expanded = value.selected; reviewing = null; mode = '';bulkFor=null;bulkPlan=null;bulkNotice='';qualityFor=null;qualityPlan=null; }
-    model = value;jobsByRow=new Map((value.jobs || []).map(job=>[job.rowId,job])); render(Boolean(selectionChanged));
+    model = value;jobsByRow=new Map((value.jobs || []).map(job=>[job.rowId,job])); render(Boolean(selectionChanged || connectionChanged));
   }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = '';bulkFor=null;bulkPlan=null;bulkNotice='';qualityFor=null;qualityPlan=null; render(true); } };
   root.playlistSyncPanel = controller; render(); return controller;
 }
