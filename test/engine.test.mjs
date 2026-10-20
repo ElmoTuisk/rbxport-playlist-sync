@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import {createHash} from 'node:crypto';
 import { Store } from '../src/store.mjs';
 import { Engine } from '../src/engine.mjs';
 
@@ -177,6 +178,77 @@ test('lower-quality local files also wait for their own verified confirmation',a
 test('a normal-quality selected URL is queued for only that song and needs no quality exception',async t=>{
  const f=await fixture(t);f.remote(['new']);await f.engine.sync(f.link.id,{preview:true});const row=f.engine.rows(f.link.id)[0];f.downloads.inspectSource=async()=>({normal:true,lowerOptions:[]});
  const result=await f.engine.resolveRow(row.id,{action:'source',url:'https://soundcloud.com/fixture/high'});assert(result.startDownload);assert.equal(f.store.all('jobs')[0].qualityApproval,null);assert.equal(f.acquisitions(),0);
+});
+
+async function qualityFixture(t){
+ const f=await fixture(t);f.remote(['one','two','untouched']);await f.engine.sync(f.link.id,{preview:true});
+ for(const [index,row] of f.engine.rows(f.link.id).slice(0,2).entries()){
+  const jobId=createHash('sha256').update(f.engine.bindingKey(f.link.libraryId,row.track.key)).digest('hex');
+  const option={id:String(index+1).repeat(64),url:'https://soundcloud.com/fixture/'+index,formatId:'aac-160',codec:'aac',bitrate:160,duration:200,verified:false};
+  f.store.put('jobs',jobId,{id:jobId,key:row.track.key,libraryId:f.link.libraryId,linkId:f.link.id,rowId:row.id,status:'review',lowerOptions:[{...option,id:String(index+3).repeat(64),formatId:'aac-96',bitrate:96},option]});
+ }
+ return f;
+}
+
+test('bulk quality approval previews exact best known choices, then downloads only accepted rows and orders once',async t=>{
+ const f=await qualityFixture(t),plan=await f.engine.bulkQualityPlan(f.link.id);
+ assert.equal(plan.entries.length,2);assert(plan.entries.every(e=>e.bitrate===160));assert(f.store.all('jobs').every(j=>!j.qualityApproval));assert.equal(f.acquisitions(),0);
+ const accepted=await f.engine.acceptBulkQuality(f.link.id,plan);assert.equal(accepted.accepted,2);assert(f.store.all('jobs').every(j=>j.status==='queued'&&j.qualityApproval.bitrate===160));
+ const acquired=[],call=f.bridge.call;let imported=0;
+ f.downloads.acquire=async(track,job)=>{acquired.push(track.title);assert.equal(job.overrideUrl,job.qualityApproval.url);assert.equal(job.requestedFormatId,'aac-160');return{file:f.path,quality:{codec:'aac',bitrate:160,belowStandard:true}};};
+ f.bridge.call=async(method,args)=>{if(method==='import'){const track={id:'bulk-'+imported++,title:'Downloaded',artist:'Fixture',duration:200,path:f.path};f.tracks.push(track);return{tracks:[track],existing:[],skipped:[]};}return call(method,args);};
+ f.calls.length=0;const run=await f.engine.downloadRows(accepted.rowIds);
+ assert.equal(run.ready,2);assert.deepEqual(acquired,['one','two']);assert.deepEqual(f.target,['bulk-0','bulk-1','x','a','y','b']);assert.equal(f.calls.filter(m=>m==='reorder').length,1);
+ assert.equal(f.engine.rows(f.link.id)[2].status,'missing');assert.equal(f.engine.settings().quality,'strict-mp3-320');
+});
+
+test('changed bulk quality choices, wrong libraries and active syncs cannot approve a partial batch',async t=>{
+ const f=await qualityFixture(t),plan=await f.engine.bulkQualityPlan(f.link.id),job=f.store.all('jobs')[1];
+ f.store.put('jobs',job.id,{...job,lowerOptions:job.lowerOptions.map(o=>({...o,bitrate:128}))});
+ await assert.rejects(f.engine.acceptBulkQuality(f.link.id,plan),/choices changed/);assert(f.store.all('jobs').every(j=>!j.qualityApproval));
+ const fresh=await f.engine.bulkQualityPlan(f.link.id),call=f.bridge.call;f.bridge.call=async(method,args)=>method==='info'?{libraryId:'other'}:call(method,args);
+ await assert.rejects(f.engine.acceptBulkQuality(f.link.id,fresh),/Wrong rbxport library/);assert(f.store.all('jobs').every(j=>!j.qualityApproval));
+ f.bridge.call=call;f.engine.active=f.link.id;await assert.rejects(f.engine.bulkQualityPlan(f.link.id),/current sync/);await assert.rejects(f.engine.acceptBulkQuality(f.link.id,fresh),/current sync/);f.engine.active=null;
+});
+
+test('bulk quality excludes unknown bitrate, preview formats, wrong lengths, existing-match reviews and cancelled jobs',async t=>{
+ const f=await qualityFixture(t),jobs=f.store.all('jobs');
+ f.store.put('jobs',jobs[0].id,{...jobs[0],lowerOptions:jobs[0].lowerOptions.map(o=>({...o,bitrate:0}))});
+ f.store.put('jobs',jobs[1].id,{...jobs[1],lowerOptions:jobs[1].lowerOptions.map(o=>({...o,formatId:'http_mp3_preview'}))});
+ assert.equal((await f.engine.bulkQualityPlan(f.link.id)).entries.length,0);
+ f.store.put('jobs',jobs[0].id,{...jobs[0],lowerOptions:jobs[0].lowerOptions.map(o=>({...o,duration:30}))});assert.equal((await f.engine.bulkQualityPlan(f.link.id)).entries.length,0);
+ f.store.put('jobs',jobs[0].id,jobs[0]);const row=f.engine.rows(f.link.id)[0];f.store.put('rows',row.id,{...row,status:'review',reviewKind:'match'});assert.equal((await f.engine.bulkQualityPlan(f.link.id)).entries.length,0);
+ f.store.put('rows',row.id,row);f.store.put('jobs',jobs[0].id,{...jobs[0],status:'cancelled'});assert.equal((await f.engine.bulkQualityPlan(f.link.id)).entries.length,0);
+});
+
+test('one failed bulk download does not stop the other approved songs, and cancelling leaves the rest queued',async t=>{
+ const f=await qualityFixture(t),accepted=await f.engine.acceptBulkQuality(f.link.id,await f.engine.bulkQualityPlan(f.link.id));let calls=0;
+ f.downloads.acquire=async()=>{if(++calls===1)throw Error('Transfer failed');return {file:f.path};};
+ const run=await f.engine.downloadRows(accepted.rowIds);assert.equal(run.attention,1);assert.equal(run.ready,1);assert.equal(calls,2);
+ const g=await qualityFixture(t),queued=await g.engine.acceptBulkQuality(g.link.id,await g.engine.bulkQualityPlan(g.link.id));let started=0;
+ g.downloads.acquire=async()=>{started++;g.engine.cancel();return{file:g.path};};
+ assert.equal((await g.engine.downloadRows(queued.rowIds)).status,'cancelled');assert.equal(started,1);assert.equal(g.store.all('jobs')[1].status,'queued');assert(g.store.all('jobs')[1].qualityApproval);
+});
+
+test('deleting a host playlist removes its add-on link and history while preserving audio and collection bindings',async t=>{
+ const f=await qualityFixture(t);f.store.put('orders','order-key',{libraryId:'test',playlistId:'target'});f.store.put('bindings','keep',{localId:'a'});
+ assert.deepEqual(f.engine.reconcilePlaylists({libraryId:'test',playlists:[]}),[f.link.id]);
+ assert.equal(f.store.get('links',f.link.id),null);for(const bucket of ['rows','jobs','runs','orders'])assert.equal(f.store.all(bucket).length,0);
+ assert.equal(f.store.get('bindings','keep').localId,'a');assert.equal(await import('node:fs/promises').then(fs=>fs.readFile(f.path,'utf8')),'fixture');
+});
+
+test('library switching and incomplete host snapshots do not unlink playlists; shared jobs move to a retained link',async t=>{
+ const f=await qualityFixture(t);for(const info of [{libraryId:'other',playlists:[]},{libraryId:'test'},{libraryId:'test',playlists:[{}]}])assert.deepEqual(f.engine.reconcilePlaylists(info),[]);
+ const row=f.engine.rows(f.link.id)[0],other={...f.link,id:'retained',playlistId:'retained-target'};f.store.put('links',other.id,other);f.store.put('rows','retained-row',{...row,id:'retained-row',linkId:other.id});
+ f.engine.reconcilePlaylists({libraryId:'test',playlists:[{id:other.playlistId}]});
+ assert(f.store.get('links',other.id));assert.equal(f.store.all('jobs').length,1);assert.equal(f.store.all('jobs')[0].linkId,other.id);assert.equal(f.store.all('jobs')[0].rowId,'retained-row');
+});
+
+test('deleting an actively downloading target cancels first and cleans up after completion without resurrecting it',async t=>{
+ const f=await qualityFixture(t),accepted=await f.engine.acceptBulkQuality(f.link.id,await f.engine.bulkQualityPlan(f.link.id));
+ f.downloads.acquire=async()=>{assert.deepEqual(f.engine.reconcilePlaylists({libraryId:'test',playlists:[]}),[]);assert(f.engine.pendingUnlinks.has(f.link.id));assert(f.store.get('links',f.link.id));return{file:f.path};};
+ assert.equal((await f.engine.downloadRows(accepted.rowIds)).status,'cancelled');
+ f.engine.reconcilePlaylists({libraryId:'test',playlists:[]});assert.equal(f.store.get('links',f.link.id),null);assert.equal(f.store.all('runs').length,0);assert.equal(f.store.all('jobs').length,0);
 });
 
 async function bulkFixture(t){

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0 — 2026-10-20
+
+- Add playlist-level Accept lower quality… with a reviewed song/codec/bitrate preview and one Accept N & download action. Choose the highest reported bitrate from current eligible options, pin per-song source/format approvals, and keep global standards unchanged.
+- Process accepted songs sequentially, continue after individual failures, preserve queued approvals on cancellation and apply source order once with stable extras. Reject stale previews and exclude uncertain/cancelled/existing-match choices.
+- Remove deleted rbxport targets from the add-on after a successful current-library check. Cancel active work before cleanup, retain shared jobs for other links, and preserve audio and reusable collection bindings.
+- Document separate rbxport/add-on updates and compatibility limits.
+
 ## 0.8.0 — 2026-10-20
 
 - Distinguish library-only checks from download attempts and expose original-stream quality choices immediately after reading a SoundCloud playlist.

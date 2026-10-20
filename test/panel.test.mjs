@@ -118,6 +118,20 @@ test('ready rows under All tracks render only when the list is expanded',()=>{
  f.events.toggle({target:{dataset:{allTracks:'a'},open:false}});assert.doesNotMatch(f.root.innerHTML,/Ready song 899/);
 });
 
+test('playlist bulk quality uses one reviewed confirmation and starts a queue without per-song approval clicks',async()=>{
+ const calls=[],f=fixture(async(action,args)=>{calls.push({action,args});return action==='quality-plan'?{signature:'a'.repeat(64),skipped:1,entries:[{rowId:'a-0',title:'Fixture song 0',codec:'aac',bitrate:160,verified:false},{rowId:'a-1',title:'Fixture song 1',codec:'mp3',bitrate:128,verified:true}]}:{message:'2 lower-quality downloads approved. Starting queue.'};});
+ f.controller.update({...f.initial,selected:'a',selectionRevision:2,jobs:[{rowId:'a-0',status:'review',lowerOptions:[{codec:'aac',bitrate:160}]}]});
+ assert.match(f.root.innerHTML,/Accept lower quality…/);await f.click('quality-bulk-open','a');
+ assert.match(f.root.innerHTML,/Accept lower quality for 2 songs\?/);assert.match(f.root.innerHTML,/AAC · 160 kbps · reported/);assert.match(f.root.innerHTML,/MP3 · 128 kbps · verified/);assert.match(f.root.innerHTML,/Accept 2 & download/);assert(!calls.some(c=>c.action==='accept-quality'));
+ await f.click('quality-bulk-confirm','a');const call=calls.find(c=>c.action==='accept-quality');assert.equal(call.args.signature,'a'.repeat(64));assert.equal(call.args.id,'a');assert.match(f.root.innerHTML,/Starting queue/);assert.doesNotMatch(f.root.innerHTML,/data-bulk-quality/);
+});
+
+test('cancelling or switching playlists closes the bulk quality preview without approvals',async()=>{
+ const calls=[],f=fixture(async(action,args)=>{calls.push({action,args});return{signature:'a'.repeat(64),entries:[{title:'Fixture',codec:'aac',bitrate:160}]};});
+ f.controller.update({...f.initial,selected:'a',selectionRevision:2});await f.click('quality-bulk-open','a');await f.click('quality-bulk-dismiss','a');assert.doesNotMatch(f.root.innerHTML,/data-bulk-quality/);
+ await f.click('quality-bulk-open','a');f.controller.update({...f.initial,selected:'b',selectionRevision:3});assert.doesNotMatch(f.root.innerHTML,/data-bulk-quality/);assert(!calls.some(c=>c.action==='accept-quality'));
+});
+
 test('bulk preview requires its separate confirmation and makes alternate versions an explicit option',async()=>{
  const calls=[];const f=fixture(async(action,args)=>{calls.push({action,args});if(action==='match-plan')return{id:'a',includeAlternates:args.includeAlternates,signature:'b'.repeat(64),skipped:1,entries:Array.from({length:args.includeAlternates?3:2},()=>({title:'Fixture',localTitle:'Local fixture',localDuration:200,duration:190,alternate:args.includeAlternates}))};if(action==='accept-matches')return{message:'3 existing matches accepted.'};return{ok:true};});
  const initial={...f.initial,rows:{...f.initial.rows,a:f.initial.rows.a.map(r=>({...r,reviewKind:'match'}))}};

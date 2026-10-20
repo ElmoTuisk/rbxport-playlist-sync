@@ -38,7 +38,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     counts: store.all('rows').filter(r => r.present).reduce((out, row) => { out[row.status] = (out[row.status] || 0) + 1; return out; }, {}) });
   const panelModel = () => ({ revision, demo, connected: bridge.connected, active: engine.active, selected, selectionRevision,
     expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(),
-    links: store.all('links').filter(l => demo || !hostInfo || l.libraryId === hostInfo.libraryId).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
+    links: store.all('links').filter(l => !engine.pendingUnlinks.has(l.id) && (demo || !hostInfo || l.libraryId === hostInfo.libraryId)).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
     rows: Object.fromEntries(selected ? [[selected, engine.rows(selected)]] : []),
     jobs: store.all('jobs').filter(j => j.linkId === engine.active || j.linkId === selected), playlists: hostInfo?.playlists || [] });
   async function syncHost(open = false) {
@@ -47,6 +47,8 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     try {
       if (!bridge.connected) await bridge.connect();
       hostInfo = await bridge.call('info');
+      const removed=engine.reconcilePlaylists(hostInfo);
+      if(removed.includes(selected)){selected=null;selectionRevision++;}
       return await bridge.updateHost({ ...panelModel(), open }, css);
     } finally { hostBusy = false; }
   }
@@ -79,6 +81,11 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       }
       case 'match-plan': return engine.bulkMatchPlan(args.id,args);
       case 'accept-matches': return engine.acceptBulkMatches(args.id,args);
+      case 'quality-plan': return engine.bulkQualityPlan(args.id);
+      case 'accept-quality': {
+        const {rowIds,...result}=await engine.acceptBulkQuality(args.id,args);
+        runningSync=engine.downloadRows(rowIds);void runningSync.catch(()=>{}).finally(()=>{runningSync=null;});return result;
+      }
       case 'settings': engine.saveSettings(args); break;
       case 'spotify': { const url = await spotify.authorize(args.clientId); changed(); return { url }; }
       case 'soulseek': if (engine.active) throw Error('Wait for the current sync before changing Soulseek settings.'); await soulseek.configure(args); changed(); return soulseek.publicStatus();

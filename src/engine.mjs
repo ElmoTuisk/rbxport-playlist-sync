@@ -1,13 +1,14 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { access, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { matchTrack, playlistOrder, suggestedLocalMatch } from './matching.mjs';
+import { matchTrack, playlistOrder, suggestedLocalMatch, durationCheck } from './matching.mjs';
+import { previewFormat } from './quality.mjs';
 import { playlistReference, mediaUrl } from './providers.mjs';
 
 export class Engine {
   constructor(store, providers, downloads, bridge, changed = () => {}) {
     Object.assign(this, { store, providers, downloads, bridge, changed });
-    this.active = null; this.controller = null; this.timer = null;
+    this.active = null; this.controller = null; this.timer = null;this.pendingUnlinks=new Set();
     for (const job of store.all('jobs')) if (['searching', 'downloading', 'validating', 'importing', 'analysing'].includes(job.status)) {
       store.put('jobs', job.id, { ...job, status: 'interrupted', message: 'Interrupted. Retry resumes from the last completed stage.' });
     }
@@ -65,6 +66,27 @@ export class Engine {
   rowKey(linkId, key) { return `${linkId}|${key}`; }
   bindingKey(libraryId, key) { return `${libraryId}|${key}`; }
   rows(linkId) { return this.store.all('rows').filter(r => r.linkId === linkId && r.present).sort((a, b) => (a.position || 0) - (b.position || 0)); }
+  reconcilePlaylists(info) {
+    if(!info?.libraryId || !Array.isArray(info.playlists) || info.playlists.some(p=>!p?.id))return [];
+    const targets=new Set(info.playlists.map(p=>p.id)),removed=[];
+    for(const link of this.store.all('links')){
+      if(link.libraryId!==info.libraryId || targets.has(link.playlistId))continue;
+      if(this.active===link.id){this.pendingUnlinks.add(link.id);this.cancel();continue;}
+      const rows=this.store.all('rows'),remaining=rows.filter(r=>r.linkId!==link.id);
+      this.store.transaction(()=>{
+        for(const job of this.store.all('jobs').filter(j=>j.linkId===link.id)){
+          const other=remaining.find(r=>r.present && r.track.key===job.key && this.store.get('links',r.linkId)?.libraryId===link.libraryId);
+          if(other)this.store.put('jobs',job.id,{...job,linkId:other.linkId,rowId:other.id});else this.store.delete('jobs',job.id);
+        }
+        for(const row of rows.filter(r=>r.linkId===link.id))this.store.delete('rows',row.id);
+        for(const run of this.store.all('runs').filter(r=>r.linkId===link.id))this.store.delete('runs',run.id);
+        for(const [orderId,order] of this.store.entries('orders'))if(order.libraryId===link.libraryId&&order.playlistId===link.playlistId)this.store.delete('orders',orderId);
+        this.store.delete('links',link.id);
+      });
+      this.pendingUnlinks.delete(link.id);removed.push(link.id);
+    }
+    if(removed.length){this.changed();this.schedule();}return removed;
+  }
   async preview(id, signal, { cached = false } = {}) {
     const link = this.store.get('links', id); if (!link) throw new Error('Playlist link not found');
     const saved = cached ? this.rows(id) : null;
@@ -233,15 +255,16 @@ export class Engine {
       return false;
     }
   }
-  async downloadRow(id) {
+  async downloadRow(id) { return this.downloadRows([id]); }
+  async downloadRows(ids) {
     if(this.active)throw Error('Another sync is running. Wait or cancel it.');
-    const row=this.store.get('rows',id),link=row&&this.store.get('links',row.linkId);
-    if(!row?.present || !link)throw Error('Track not found');
+    const rows=[...new Set(ids)].map(id=>this.store.get('rows',id)),link=rows[0]&&this.store.get('links',rows[0].linkId);
+    if(!rows.length || !link || rows.some(row=>!row?.present || row.linkId!==link.id))throw Error('Choose tracks from one linked playlist.');
     this.active=link.id;this.controller=new AbortController();const signal=this.controller.signal;
     const run={id:randomUUID(),linkId:link.id,started:Date.now(),preview:false,status:'running',ready:0,attention:0};this.store.put('runs',run.id,run);this.changed();
     try{
       const info=await this.bridge.call('info');if(info.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
-      const ready=await this.processTrack(link,row,signal);run.ready=ready?1:0;run.attention=ready?0:1;
+      for(const row of rows){signal.throwIfAborted();const ready=await this.processTrack(link,row,signal);ready?run.ready++:run.attention++;}
       signal.throwIfAborted();
       const target=await this.library(link.playlistId);if(target.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
       const before=target.tracks.map(t=>t.id),order=playlistOrder(this.rows(link.id).filter(r=>['ready','matched'].includes(r.status)).map(r=>r.localId),before);
@@ -255,6 +278,55 @@ export class Engine {
     }catch(error){run.status=signal.aborted?'cancelled':'failed';run.message=error.message;this.store.put('links',link.id,{...this.store.get('links',link.id),status:run.status,message:error.message});}
     finally{run.finished=Date.now();this.store.put('runs',run.id,run);this.active=null;this.controller=null;this.changed();this.schedule();}
     return run;
+  }
+  buildBulkQualityPlan(id) {
+    const link=this.store.get('links',id);if(!link)throw Error('Playlist link not found');
+    const entries=[];let pending=0;
+    for(const row of this.rows(id)){
+      if(!['missing','review','failed','interrupted'].includes(row.status) || row.reviewKind==='match')continue;
+      const jobId=createHash('sha256').update(this.bindingKey(link.libraryId,row.track.key)).digest('hex'),job=this.store.get('jobs',jobId);
+      if(!job?.lowerOptions?.length || job.qualityApproval || job.file || job.status==='cancelled')continue;
+      const binding=this.store.get('bindings',this.bindingKey(link.libraryId,row.track.key));if(binding?.ignored || binding?.localId)continue;
+      pending++;
+      if(row.track.sourceAudio?.durationUnverified)continue;
+      const options=job.lowerOptions.filter(o=>/^[a-f0-9]{64}$/.test(String(o.id)) && ['mp3','aac','opus','vorbis'].includes(o.codec) && Number(o.bitrate)>0 &&
+        !previewFormat({format_id:o.formatId}) && durationCheck(row.track.duration,o.duration).ok && (o.url || (o.verified && o.stagedPath)));
+      options.sort((a,b)=>Number(b.bitrate)-Number(a.bitrate) || Number(b.verified)-Number(a.verified) || String(a.id).localeCompare(String(b.id)));
+      const choice=options[0];if(!choice)continue;
+      entries.push({rowId:row.id,jobId,optionId:choice.id,title:row.track.title,artist:row.track.artist,codec:choice.codec,bitrate:choice.bitrate,verified:Boolean(choice.verified),duration:choice.duration,url:choice.url,formatId:choice.formatId});
+    }
+    const signature=createHash('sha256').update(JSON.stringify({id,libraryId:link.libraryId,snapshot:link.snapshot,entries})).digest('hex');
+    return {id,entries,skipped:pending-entries.length,signature};
+  }
+  async bulkQualityPlan(id) {
+    if(this.active)throw Error('Wait for the current sync before reviewing lower-quality downloads.');
+    const plan=this.buildBulkQualityPlan(id),link=this.store.get('links',id),info=await this.bridge.call('info');
+    if(info.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+    return plan;
+  }
+  approvedLowerJob(job,choice) {
+    return {...job,qualityApproval:{...choice,approvedAt:Date.now()},overrideUrl:choice.url,requestedFormatId:choice.formatId,sourcePath:choice.stagedPath || null,sourceReport:null,sourceUrl:choice.url,file:null,acquisition:'manual',analysed:false,needsAnalysis:false,localId:null,originalOnly:false,status:'queued',message:'Lower-quality download approved. Queued.'};
+  }
+  async acceptBulkQuality(id,{signature}={}) {
+    if(this.active)throw Error('Wait for the current sync before accepting lower-quality downloads.');
+    if(!/^[a-f0-9]{64}$/.test(String(signature)))throw Error('Review the lower-quality preview first.');
+    this.active=id;this.controller=new AbortController();this.changed();
+    try{
+      const link=this.store.get('links',id);if(!link)throw Error('Playlist link not found');
+      const info=await this.bridge.call('info');if(info.libraryId!==link.libraryId)throw Error('Wrong rbxport library.');
+      this.controller.signal.throwIfAborted();
+      const plan=this.buildBulkQualityPlan(id);if(plan.signature!==signature)throw Error('Quality choices changed. Open a fresh preview.');
+      if(!plan.entries.length)throw Error('No lower-quality choices to accept.');
+      this.store.transaction(()=>{
+        for(const entry of plan.entries){
+          const row=this.store.get('rows',entry.rowId),job=this.store.get('jobs',entry.jobId),choice=job.lowerOptions.find(o=>o.id===entry.optionId);
+          this.store.put('jobs',entry.jobId,{...this.approvedLowerJob(job,choice),linkId:id,rowId:row.id});
+          this.store.delete('bindings',this.bindingKey(link.libraryId,row.track.key));
+          this.store.put('rows',row.id,{...row,status:'missing',reviewKind:undefined,reason:'Lower-quality download approved in bulk. Queued.'});
+        }
+      });
+      this.changed();return {accepted:plan.entries.length,skipped:plan.skipped,rowIds:plan.entries.map(e=>e.rowId),message:`${plan.entries.length} lower-quality downloads approved. Starting queue.`};
+    }finally{this.active=null;this.controller=null;this.changed();this.schedule();}
   }
   async bulkMatchPlan(id,{includeAlternates=false}={}) {
     if(this.active)throw Error('Stop the current sync or wait for it to finish before reviewing bulk matches.');
@@ -339,6 +411,7 @@ export class Engine {
     else if (value.action === 'match') {
       const result = await this.bridge.call('track', { libraryId: link.libraryId, id: String(value.localId) });
       await access(result.path);
+      if(!this.store.get('links',link.id))throw Error('The linked playlist was deleted.');
       this.store.put('bindings', this.bindingKey(link.libraryId, row.track.key), { localId: result.id });
     } else if (['retry', 'source', 'file','lower'].includes(value.action)) {
       const jobId = createHash('sha256').update(this.bindingKey(link.libraryId, row.track.key)).digest('hex');
@@ -363,7 +436,7 @@ export class Engine {
       }
       if(value.action==='lower'){
         const choice=job.lowerOptions?.find(o=>o.id===value.optionId);if(!choice)throw Error('This quality option is no longer available. Check the source again.');
-        job.qualityApproval={...choice,approvedAt:Date.now()};job.overrideUrl=choice.url;job.requestedFormatId=choice.formatId;job.sourcePath=choice.stagedPath || null;job.sourceReport=null;job.sourceUrl=choice.url;job.file=null;job.acquisition='manual';job.analysed=false;job.needsAnalysis=false;job.localId=null;
+        Object.assign(job,this.approvedLowerJob(job,choice));
       }
       if (value.action === 'file') {
         if (!isAbsolute(value.path || '')) throw new Error('Supply an absolute audio-file path.');
@@ -393,7 +466,7 @@ export class Engine {
   cancel() { this.controller?.abort(); }
   schedule() {
     clearTimeout(this.timer); if (this.active || this.closed) return;
-    const links = this.store.all('links').filter(l => l.automatic);
+    const links = this.store.all('links').filter(l => l.automatic&&!this.pendingUnlinks.has(l.id));
     if (!links.length) return;
     const link = links.sort((a, b) => Math.max(a.nextCheck || 0, a.retryAt || 0) - Math.max(b.nextCheck || 0, b.retryAt || 0))[0];
     const delay = Math.max(10000, Math.max(link.nextCheck || 0, link.retryAt || 0) - Date.now());

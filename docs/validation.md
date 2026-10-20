@@ -8,7 +8,7 @@ Version 0.3.2 adds ten Spotify-authentication checks: restart recovery, S256 cha
 
 The repaired running service was also checked: visiting the bare callback address returned HTTP 200 with the explanatory HTML page, and the native Settings panel exposed the Client ID field and Connect action within the app viewport. The current account remained disconnected; a fresh user-initiated authorization is still required.
 
-111 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
+120 Node tests passed on Windows with Node 24.19.0 and FFmpeg/FFprobe 9.0.2. No automated tests access an installed music library.
 
 - Source order, stable extras, repeat-sync idempotence and source removals.
 - Duplicate collection matching, duplicate target protection and missing files.
@@ -22,6 +22,12 @@ The repaired running service was also checked: visiting the bare callback addres
 - Native bridge expressions and guarded reorder execution with a fake Tauri host.
 - Private installed-tool defaults, compact-window launch arguments, paths with spaces, pairing validation and persistent installed-data paths.
 - Main-frame/origin isolation for native UI actions, self-contained script compilation and idempotent shutdown.
+
+## Bulk quality approval and deleted targets 0.9.0
+
+Nine additional regressions cover the preview/confirmation boundary, best known exact choices, atomic rejection of stale offers and wrong libraries, active-operation guards, exclusion of uncertain choices, serial acquisition/import, continuation after a failed transfer, cancellation with queued approvals, one final source-order pass, and no downloads for unrelated rows. Deletion fixtures cover current-library-only reconciliation, incomplete snapshots, playlist-specific history cleanup, retained audio/bindings, shared-job reassignment, and cancellation before removing an active target without resurrecting records. Renderer tests verify one batch confirmation and cancellation/selection dismissal. All 120 tests passed on Windows with no skips.
+
+The native version 16 panel exposed a 42-song preview for the existing live playlist, choosing reported AAC 160 or 96 kbps. Accept 42 & download was enabled and visible above the sticky footer inside the app viewport. The real confirmation was not clicked: no approvals or downloads were created by the verification. Serial acquisition/import and deletion behavior were tested with isolated fixture libraries; no real user playlist was deleted for testing.
 
 ## SoundCloud downloads and performance 0.8.0
 

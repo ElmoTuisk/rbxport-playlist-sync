@@ -3,6 +3,7 @@ export function mountPanel(root, initial, send) {
   if (root.playlistSyncPanel) { root.playlistSyncPanel.update(initial); return root.playlistSyncPanel; }
   let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false, allFor = null;
   let bulkFor=null,bulkPlan=null,bulkAlternates=false,bulkNotice='';
+  let qualityFor=null,qualityPlan=null;
   const reviewDrafts={},reviewNotices={};let qualityPending=null;
   let jobsByRow=new Map((initial.jobs || []).map(job=>[job.rowId,job]));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,8 +33,8 @@ export function mountPanel(root, initial, send) {
         const status = model.active === link.id ? progress ? `${progress.title} · ${progress.status}${progress.progress ? ` ${progress.progress}` : ''}` : 'Checking playlist…' : link.message || 'Ready to check';
         return `<section class="ps-playlist"><div class="ps-line"><button class="ps-name" type="button" data-action="details" data-id="${esc(link.id)}" aria-expanded="${expanded === link.id}"><span class="ps-symbol ${link.status === 'synced' ? 'ps-good' : link.status === 'attention' || link.status === 'failed' ? 'ps-warn' : ''}" title="${esc(link.status === 'synced' ? 'Synced' : 'Linked playlist')}">⇄</span>${esc(link.name)}</button>${button('sync', 'Sync', link.id, model.active || busy ? 'disabled' : '')}</div><p class="ps-status">${esc(status)}</p>
           ${expanded === link.id ? `<div class="ps-details"><label class="ps-check"><input type="checkbox" data-automatic="${esc(link.id)}" ${link.automatic ? 'checked' : ''}> Auto-sync</label>${link.extraCount ? `<p class="ps-muted">${link.extraCount} extra local songs kept at the bottom.</p>` : ''}
-          <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
-          ${bulkFor===link.id?bulkForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
+          <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>qualityOffer(r)?.pending) ? button('quality-bulk-open','Accept lower quality…',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
+          ${bulkFor===link.id?bulkForm():''}${qualityFor===link.id?bulkQualityForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
           <details class="ps-more" data-all-tracks="${esc(link.id)}" ${allFor===link.id?'open':''}><summary>All tracks · ${rows().length}</summary>${allFor===link.id?rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small${qualityOffer(r)||r.audioQuality?.belowStandard?' class="ps-quality"':''}>${esc(r.track.artist)} · ${esc(rowLabel(r))}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}${r.audioQuality.officialOriginal?' · official original':''}`:''}</small></div></div>`).join(''):''}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
@@ -52,6 +53,10 @@ export function mountPanel(root, initial, send) {
     const result=await act('match-plan',{id:bulkFor,includeAlternates:bulkAlternates});
     if(result && !error)bulkPlan=result;render(true);
     requestAnimationFrame(()=>root.querySelector('[data-bulk-preview]')?.scrollIntoView({block:'nearest'}));
+  }
+  function bulkQualityForm() {
+    const entries=qualityPlan?.entries || [];
+    return `<div class="ps-form" data-bulk-quality><strong>${qualityPlan?`Accept lower quality for ${entries.length} songs?`:'Checking available quality choices…'}</strong><p class="ps-muted">Uses the highest reported bitrate available for each song. Only these listed sources and formats are approved. Your normal audio standard stays unchanged. Downloads run one at a time, then source order is applied.</p>${qualityPlan?`<details class="ps-more"><summary>View ${entries.length} songs and quality</summary>${entries.map(e=>`<div class="ps-track"><div><strong>${esc(e.title)}</strong><small>${esc(e.codec.toUpperCase())} · ${Math.round(e.bitrate)} kbps · ${e.verified?'verified':'reported'}${['opus','vorbis'].includes(e.codec)?' · FLAC for playback':''}</small></div></div>`).join('')}</details>${qualityPlan.skipped?`<p class="ps-muted">${qualityPlan.skipped} choices need individual review because bitrate or length could not be confirmed.</p>`:''}`:''}<div class="ps-form-actions">${button('quality-bulk-dismiss','Cancel')}${button('quality-bulk-confirm',`Accept ${entries.length} & download`,qualityFor,!entries.length||busy||model.active?'disabled':'')}</div></div>`;
   }
   function reviewForm(row) {
     if (!row) return '';
@@ -90,9 +95,19 @@ export function mountPanel(root, initial, send) {
   root.addEventListener('click', async event => {
     const target = event.target.closest('[data-action]'); if (!target) return;
     const { action, id } = target.dataset;
-    if(['details','link','settings'].includes(action)){bulkFor=null;bulkPlan=null;bulkNotice='';}
+    if(['details','link','settings'].includes(action)){bulkFor=null;bulkPlan=null;bulkNotice='';qualityFor=null;qualityPlan=null;}
     if (action === 'details') { expanded = expanded === id ? null : id; reviewing = null; render(true); if (expanded) await act('select', { id }); }
-    else if(action==='bulk-open'){bulkFor=id;bulkAlternates=false;bulkNotice='';reviewing=null;await loadBulkPlan();}
+    else if(action==='bulk-open'){bulkFor=id;bulkAlternates=false;bulkNotice='';reviewing=null;qualityFor=null;qualityPlan=null;await loadBulkPlan();}
+    else if(action==='quality-bulk-open'){
+      qualityFor=id;qualityPlan=null;bulkFor=null;bulkNotice='';reviewing=null;render(true);
+      const result=await act('quality-plan',{id});if(result&&!error)qualityPlan=result;render(true);
+      requestAnimationFrame(()=>root.querySelector('[data-bulk-quality]')?.scrollIntoView({block:'nearest'}));
+    }
+    else if(action==='quality-bulk-dismiss'){qualityFor=null;qualityPlan=null;render(true);}
+    else if(action==='quality-bulk-confirm' && qualityPlan){
+      const result=await act('accept-quality',{id:qualityFor,signature:qualityPlan.signature});
+      if(result&&!error){bulkNotice=result.message;qualityFor=null;qualityPlan=null;render(true);}
+    }
     else if(action==='bulk-dismiss'){bulkFor=null;bulkPlan=null;render(true);}
     else if(action==='bulk-confirm' && bulkPlan){
       const result=await act('accept-matches',{id:bulkFor,includeAlternates:bulkPlan.includeAlternates,signature:bulkPlan.signature});
@@ -155,8 +170,8 @@ export function mountPanel(root, initial, send) {
   });
   const controller = { update(value) {
     const selectionChanged = value.selectionRevision !== model.selectionRevision && value.selected;
-    if (selectionChanged) { expanded = value.selected; reviewing = null; mode = '';bulkFor=null;bulkPlan=null;bulkNotice=''; }
+    if (selectionChanged) { expanded = value.selected; reviewing = null; mode = '';bulkFor=null;bulkPlan=null;bulkNotice='';qualityFor=null;qualityPlan=null; }
     model = value;jobsByRow=new Map((value.jobs || []).map(job=>[job.rowId,job])); render(Boolean(selectionChanged));
-  }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = '';bulkFor=null;bulkPlan=null;bulkNotice=''; render(true); } };
+  }, showError(message) { error = message; busy = false; render(true); }, collapse() { expanded = null; mode = ''; reviewing = null; error = '';bulkFor=null;bulkPlan=null;bulkNotice='';qualityFor=null;qualityPlan=null; render(true); } };
   root.playlistSyncPanel = controller; render(); return controller;
 }

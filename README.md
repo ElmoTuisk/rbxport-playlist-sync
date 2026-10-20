@@ -4,7 +4,7 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 
 **Retry missing** checks SoundCloud originals/search, Newgrounds and YouTube, then an optional Soulseek fallback. One failed provider or file does not discard the other candidates.
 
-**Windows x64 · Experimental v0.8.0 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.9.0 · Tested with rbxport 1.9.0**
 
 [Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues)
 
@@ -21,7 +21,7 @@ A small add-on that links your Spotify and SoundCloud playlists to rbxport. It r
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.8.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.9.0-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -83,6 +83,14 @@ Ordinary lower-quality SoundCloud/YouTube streams still require the separate con
 
 Linking initially checks the source and your collection; it does not download music. The status explicitly says **Click Sync to search and download**. Available original-stream choices appear immediately, labelled **Lower-quality original stream available** until a complete search has run. **Sync** searches other sources at your usual audio standard.
 
+### Accept lower-quality songs in bulk
+
+1. Expand the linked playlist and click **Accept lower quality…**.
+2. Check the count and optional **View N songs and quality** list. The add-on chooses the highest reported bitrate among each song’s existing options; this is not a comparison of perceived quality across codecs.
+3. Click **Accept N & download** once. Only the listed song/source/format choices are approved and queued. Downloads run one at a time, continue after individual failures, and apply source order with extra songs retained at the bottom. Your global audio standard stays unchanged.
+
+Unknown bitrate, preview formats, wrong lengths, cancelled songs and existing-match reviews remain for individual handling. A changed preview requires a fresh confirmation. Cancelling a download batch keeps unstarted approved songs queued for a later Sync. Actual audio that changes codec or falls materially below the approved bitrate still needs a new confirmation.
+
 ### Choose lower-quality audio for one song
 
 1. Songs with found lower-quality sources show **Only lower-quality audio found** with codec/bitrate directly in the list. Click **Review quality**, choose a format under **Lower-quality audio available**, then **Review lower-quality file**. During an ongoing search the label says **Checking sources · lower-quality audio found** instead. Reported quality stays distinct from a verified file.
@@ -122,10 +130,15 @@ Progress and Cancel stay in the existing panel. Unavailable tracks remain unreso
 
 Credentials are stored with Windows account encryption and never appear in API models, logs or command arguments. The helper needs a temporary local plaintext config while running; it is removed afterward and cleaned on the next launch after an interrupted run. Incoming peer connections are **off by default**. You can enable **Allow incoming peer connections** in Soulseek settings: it opens a temporary TCP listener on port 49998 while the helper runs, without sharing music or changing firewall/router rules. Use the [validation record](docs/validation.md) for the exact live tests and limitations.
 
+## Deleting a playlist
+
+Deleting a linked playlist in rbxport also clears its add-on link, pending entries and playlist-specific history after the next successful host check, normally within 20 seconds. An active queue for that target is cancelled first. Other libraries and shared track records are retained. Downloaded music and collection bindings are not deleted.
+
 ## Stop or update
 
 - **Stop:** Start Menu → Playlist Sync → **Stop Playlist Sync**. Close rbxport and reopen it normally to disable its local automation connection.
 - **Update:** Stop the add-on, close rbxport, extract the new setup ZIP and run `Install-Playlist-Sync.cmd` again. Saved links, settings and accounts are preserved in the separate data folder. Setup overwrites matching program files but does not yet remove obsolete files from older versions. Updates are manual; there is no automatic updater. After a successful install, the downloaded ZIP and extracted setup folder can be deleted.
+- **Updating rbxport itself:** Its installation is separate from the add-on and saved data. Update rbxport normally, close it, then reopen it through the Playlist Sync shortcut. Compatibility is currently tested with rbxport 1.9.0. A newer release can change automation commands, the local connection or sidebar structure and require an add-on update; compatibility is not guaranteed.
 - **Can’t find the panel?** Close rbxport and reopen it through the Playlist Sync shortcut. Look below Tag List. Use **Reconnect** if the panel reports a disconnection.
 
 Settings and downloads are stored in `%LOCALAPPDATA%\rbxport-playlist-sync`. Use the gear to change the download folder. Keep this data folder, cookies and credentials private.

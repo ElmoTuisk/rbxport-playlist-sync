@@ -4,12 +4,12 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.8.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.9.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.8.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
+2. Download `playlist-sync-0.9.0-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
 3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
@@ -126,3 +126,11 @@ This folder can be its own GitHub repository. `Package-Addon.ps1` makes an allow
 
 GPL-2.0-or-later; see [LICENSE](../LICENSE). Built for [rbxport](https://github.com/chrisle/rbxport). The [spotDL](https://github.com/spotDL/spotify-downloader) and [scdl](https://github.com/scdl-org/scdl) projects informed downloader evaluation. This implementation calls yt-dlp and FFmpeg directly to keep pre-transcode quality checks explicit. The tools retain their own licenses. This is an independent add-on.
 
+
+## Bulk lower-quality approval and deleted playlists
+
+Expand a link and use Accept lower quality… → View N songs and quality → Accept N & download. One confirmation approves the exact listed choices, at the highest reported bitrate among existing options, and starts a serial download/import queue. Unknown bitrate, preview/wrong-length options, cancelled jobs and existing-match reviews are excluded. Global audio settings stay unchanged. The queue continues after individual failures, preserves source order and retains extra songs; cancellation keeps unstarted approvals queued.
+
+Deleting a target in rbxport automatically removes its link, rows and playlist-specific history after a successful current-library check. An active operation is cancelled and allowed to finish before cleanup. Audio and reusable collection bindings remain. Switching libraries does not unlink the hidden library’s playlists.
+
+rbxport updates do not overwrite the separate add-on installation or data. Close rbxport after updating and reopen through Playlist Sync. Version 1.9.0 is the tested host; changes to automation commands or sidebar structure may require an add-on update.
