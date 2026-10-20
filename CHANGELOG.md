@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1 — 2026-10-20
+
+- Stop showing an orange quality-choice warning from earlier web alternatives while a normal source/Soulseek fallback is searching, downloading or importing. Show current progress and keep transfer quality pending until the actual file passes verification.
+- Show verified codec/bitrate while preparing/importing a checked source and beside completed normal-quality downloads under All tracks. A verified file awaiting import retry also takes precedence over old web offers.
+- Keep lower-quality alternatives for later review and retain explicit lower-quality approval/ready-file warnings. Use neutral "alternatives available" wording instead of claiming that only lower-quality audio exists.
+
 ## 0.10.0 — 2026-10-20
 
 - Embed exact Spotify album/SoundCloud track artwork automatically in new downloads, preserve existing attached covers as fallback, retain album tags and keep missing artwork from blocking verified audio. Bound image requests/cache and normalize JPEG cover attachments for MP3, M4A and approved FLAC playback output.

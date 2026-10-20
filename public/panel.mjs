@@ -10,18 +10,35 @@ export function mountPanel(root, initial, send) {
   const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
   const needsHelp = row => !['ready', 'matched', 'ignored'].includes(row.status);
+  const inProgress = row => ['searching','downloading','validating','importing','analysing'].includes(jobsByRow.get(row.id)?.status);
   const labels = { missing: 'Not downloaded yet', review: 'Check source', missing_file: 'File unavailable', unavailable: 'Unavailable', failed: 'Failed', cancelled: 'Cancelled', interrupted: 'Interrupted' };
   const qualityOffer = row => {
     if (!needsHelp(row) || row.reviewKind === 'match') return null;
     const job = jobsByRow.get(row.id);
     if (!job?.lowerOptions?.length) return null;
+    if(job.file && job.quality?.ok && !job.quality.belowStandard)return null;
+    // Old web alternatives are not the file currently being acquired. Keep the
+    // offers for later review, but do not imply the fallback is below standard.
+    if (inProgress(row) && (!job.qualityApproval || (job.sourcePath && job.sourceReport?.ok && !job.sourceReport.belowStandard))) return null;
     const option = job.qualityApproval || [...job.lowerOptions].sort((a,b) => Number(b.verified)-Number(a.verified) || (Number(b.bitrate)||0)-(Number(a.bitrate)||0))[0];
     const quality = `${String(option.codec || 'audio').toUpperCase()} ${option.bitrate > 0 ? Math.round(option.bitrate)+' kbps' : '· bitrate unknown'} · ${option.verified ? 'verified' : 'reported'}`;
     const pending = !job.qualityApproval;
-    const state = pending ? ['searching','downloading','validating'].includes(job.status) ? 'Checking sources · lower-quality audio found' : job.originalOnly ? 'Lower-quality original stream available' : 'Only lower-quality audio found' : 'Lower-quality download approved';
+    const state = pending ? job.originalOnly ? 'Lower-quality original stream available' : 'Lower-quality alternatives available' : 'Lower-quality download approved';
     return { pending, label: `${state} · ${quality}` };
   };
-  const rowLabel = row => qualityOffer(row)?.label || (row.status === 'review' && row.reviewKind === 'match' ? 'Check existing match' : needsHelp(row)&&row.track.sourceAudio?.preview ? 'SoundCloud preview only · full recording needed' : needsHelp(row)&&row.track.sourceAudio?.unavailable ? 'Original unavailable · Sync to search alternatives' : labels[row.status] || row.status);
+  const rowLabel = row => {
+    const job=jobsByRow.get(row.id),offer=qualityOffer(row);
+    if(offer)return offer.label;
+    const audio=report=>`${String(report.codec || 'audio').toUpperCase()}${report.bitrate>0?' '+Math.round(report.bitrate)+' kbps':''}`;
+    if(inProgress(row)){
+      if(job.sourcePath && job.sourceReport?.ok && !job.sourceReport.belowStandard)
+        return `${audio(job.sourceReport)} verified · ${['importing','analysing'].includes(job.status)?'Finishing import':'Preparing file'}`;
+      return job.status==='searching'?`Searching ${job.acquisition==='soulseek'?'Soulseek':'sources'} for audio at your standard`:job.status==='downloading'?`Downloading${job.acquisition==='soulseek'?' from Soulseek':''} · quality check pending`:job.status==='validating'?'Verifying downloaded audio':'Finishing verified import';
+    }
+    if(row.status==='ready' && job?.status==='ready' && job.quality?.ok && !job.quality.belowStandard)return `Ready · ${audio(job.quality)} · verified`;
+    if(needsHelp(row) && job?.file && job.quality?.ok && !job.quality.belowStandard)return `${audio(job.quality)} verified · import needs retry`;
+    return row.status === 'review' && row.reviewKind === 'match' ? 'Check existing match' : needsHelp(row)&&row.track.sourceAudio?.preview ? 'SoundCloud preview only · full recording needed' : needsHelp(row)&&row.track.sourceAudio?.unavailable ? 'Original unavailable · Sync to search alternatives' : labels[row.status] || row.status;
+  };
   function render(force = false) {
     if (!force && root.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     root.innerHTML = `<div class="ps-head"><strong>Playlist sync</strong><div>${button('settings', '⚙', '', 'aria-label="Sync settings" title="Settings"')}${button('close', '×', '', 'aria-label="Close playlist sync"')}</div></div>
@@ -35,7 +52,7 @@ export function mountPanel(root, initial, send) {
           ${expanded === link.id ? `<div class="ps-details"><label class="ps-check"><input type="checkbox" data-automatic="${esc(link.id)}" ${link.automatic ? 'checked' : ''}> Auto-sync</label>${link.extraCount ? `<p class="ps-muted">${link.extraCount} extra local songs kept at the bottom.</p>` : ''}
           <div class="ps-tools">${button('recheck','Recheck files',link.id,model.active || busy ? 'disabled' : '')}${rows().some(needsHelp) ? button('retry-missing','Retry missing',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>r.status==='review'&&r.reviewKind==='match') ? button('bulk-open','Accept suggested matches',link.id,model.active || busy ? 'disabled' : '') : ''}${rows().some(r=>qualityOffer(r)?.pending) ? button('quality-bulk-open','Accept lower quality…',link.id,model.active || busy ? 'disabled' : '') : ''}</div>
           ${bulkFor===link.id?bulkForm():''}${qualityFor===link.id?bulkQualityForm():''}${bulkNotice?`<p class="ps-muted" role="status">${esc(bulkNotice)}</p>`:''}
-          ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
+          ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : inProgress(row)?'Details':qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
           <details class="ps-more" data-all-tracks="${esc(link.id)}" ${allFor===link.id?'open':''}><summary>All tracks · ${rows().length}</summary>${allFor===link.id?rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small${qualityOffer(r)||r.audioQuality?.belowStandard?' class="ps-quality"':''}>${esc(r.track.artist)} · ${esc(rowLabel(r))}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}${r.audioQuality.officialOriginal?' · official original':''}`:''}</small></div></div>`).join(''):''}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
       ${mode === 'link' ? linkForm() : ['settings','soulseek'].includes(mode) ? settingsForm() : ''}

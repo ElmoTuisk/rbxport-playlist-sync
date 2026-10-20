@@ -2,6 +2,12 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## Quality status precedence 0.10.1
+
+The reported example's web searches found lower-quality AAC/Opus alternatives, then Soulseek supplied a different MP3. Independent ffprobe checks confirmed 320 kbps for both the received source and published file, both 222.18449 seconds. Their compressed audio packet hashes matched, so the add-on did not upscale/re-encode this example. This establishes encoding and packet preservation, not the history of the original recording.
+
+All 130 tests passed on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. Renderer regressions cover an active search, an unverified transfer, verified preparation/import/analysis, a completed 320 kbps file, import retry, retained alternatives and explicitly approved lower-quality audio. Both issue rows and All tracks use current transfer/verified-file state ahead of older alternatives. The quality and acquisition policy is unchanged.
+
 ## Artwork and broader discovery 0.10.0
 
 All 129 tests passed on Windows with real FFmpeg/ffprobe and DPAPI enabled; none skipped. New regressions cover Spotify API/public-page and SoundCloud cover metadata, exact-track oEmbed fallback (including Spotify's image-cdn host), image host/redirect validation, size limits, caching, cancellation and existing attached-picture fallback. Real MP3/M4A/approved FLAC files contain a front-cover JPEG and album tag; audio packet hashes (MP3/AAC) and decoded 24-bit PCM hashes (Opus to FLAC) stay unchanged. Missing provider images preserve usable audio. Discovery fixtures cover a valid sixth result, alternate-query deduplication, Spotify `(with …)` naming and retaining a remixer after inline `ft.` credits while rejecting wrong versions/durations. Temporary Soulseek connection failures no longer abandon later web downloads; a bounded backoff prevents repeated helper launches during the outage. Authentication failures still stop.

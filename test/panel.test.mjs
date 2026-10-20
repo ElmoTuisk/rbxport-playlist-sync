@@ -69,11 +69,11 @@ test('lower-only results show quality and a review action before opening the son
   {id:'low',codec:'aac',bitrate:96},{id:'best',codec:'aac',bitrate:160}
  ]}]};
  f.controller.update(model);
- assert.match(f.root.innerHTML,/<small class="ps-quality">Only lower-quality audio found · AAC 160 kbps · reported<\/small>/);
+ assert.match(f.root.innerHTML,/<small class="ps-quality">Lower-quality alternatives available · AAC 160 kbps · reported<\/small>/);
  assert.match(f.root.innerHTML,/data-id="a-0" aria-expanded="false">Review quality<\/button>/);
  assert.doesNotMatch(f.root.innerHTML,/Fixture artist · Only lower-quality/);
  f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
- assert.match(f.root.innerHTML,/Fixture artist · Only lower-quality audio found · AAC 160 kbps · reported/);
+ assert.match(f.root.innerHTML,/Fixture artist · Lower-quality alternatives available · AAC 160 kbps · reported/);
  assert.match(f.root.innerHTML,/data-id="a-1" aria-expanded="false">Resolve<\/button>/);
  assert.doesNotMatch(f.root.innerHTML,/data-form="resolve"/);
  await f.click('review','a-0');
@@ -86,18 +86,40 @@ test('quality labels distinguish ongoing searches, approvals, verified files and
  const option={id:'offer',codec:'opus',bitrate:127,verified:false};
  const update=job=>f.controller.update({...base,jobs:[{rowId:'a-0',lowerOptions:[option],...job}]});
  update({status:'searching'});
- assert.match(f.root.innerHTML,/Checking sources · lower-quality audio found · OPUS 127 kbps · reported/);
+ assert.match(f.root.innerHTML,/Searching sources for audio at your standard/);
+ assert.doesNotMatch(f.root.innerHTML,/class="ps-quality"/);
  assert.doesNotMatch(f.root.innerHTML,/Only lower-quality audio found/);
  update({status:'queued',qualityApproval:option});
  assert.match(f.root.innerHTML,/Lower-quality download approved · OPUS 127 kbps · reported/);
  assert.doesNotMatch(f.root.innerHTML,/>Review quality<\/button>/);
  update({status:'review',lowerOptions:[option,{id:'actual',codec:'aac',bitrate:0,verified:true}]});
- assert.match(f.root.innerHTML,/Only lower-quality audio found · AAC · bitrate unknown · verified/);
+ assert.match(f.root.innerHTML,/Lower-quality alternatives available · AAC · bitrate unknown · verified/);
  assert.doesNotMatch(f.root.innerHTML,/AAC 0 kbps/);
  f.controller.update({...base,rows:{...base.rows,a:[{...base.rows.a[0],status:'ready',audioQuality:{belowStandard:true,codec:'aac',bitrate:160}}]},jobs:[{rowId:'a-0',status:'ready',lowerOptions:[option],qualityApproval:option}]});
  f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
  assert.match(f.root.innerHTML,/ready · LOWER AAC 160 kbps/);
  assert.doesNotMatch(f.root.innerHTML,/Only lower-quality audio found|Lower-quality download approved|Review quality/);
+});
+
+test('fallback downloads show current verification instead of stale lower web alternatives in both lists',()=>{
+ const f=fixture(),row={...f.initial.rows.a[0],status:'missing'},base={...f.initial,selected:'a',selectionRevision:2,rows:{a:[row]}};
+ const low={id:'web-low',codec:'aac',bitrate:130},job={rowId:row.id,acquisition:'soulseek',lowerOptions:[low]};
+ const update=fields=>f.controller.update({...base,jobs:[{...job,...fields}]});
+ update({status:'searching'});assert.match(f.root.innerHTML,/Searching Soulseek for audio at your standard/);assert.doesNotMatch(f.root.innerHTML,/ps-quality|Review quality|Only lower-quality/);
+ update({status:'downloading'});assert.match(f.root.innerHTML,/Downloading from Soulseek · quality check pending/);assert.doesNotMatch(f.root.innerHTML,/320 kbps verified|ps-quality/);
+ f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
+ assert.equal((f.root.innerHTML.match(/Downloading from Soulseek · quality check pending/g)||[]).length,2);
+ const verified={sourcePath:'verified-source.mp3',sourceReport:{ok:true,codec:'mp3',bitrate:320,belowStandard:false}};
+ for(const status of ['validating','importing','analysing']){
+  update({status,...verified});assert.match(f.root.innerHTML,/MP3 320 kbps verified/);assert.doesNotMatch(f.root.innerHTML,/ps-quality|Review quality|AAC 130/);
+ }
+ update({status:'validating',qualityApproval:low,...verified});assert.doesNotMatch(f.root.innerHTML,/ps-quality|Lower-quality download approved/);
+ const quality={ok:true,codec:'mp3',bitrate:320,belowStandard:false};
+ f.controller.update({...base,rows:{a:[{...row,status:'ready'}]},jobs:[{...job,status:'ready',quality,file:'download.mp3'}]});
+ assert.match(f.root.innerHTML,/Ready · MP3 320 kbps · verified/);assert.doesNotMatch(f.root.innerHTML,/ps-quality|Review quality/);
+ update({status:'failed',file:'download.mp3',quality});assert.match(f.root.innerHTML,/MP3 320 kbps verified · import needs retry/);assert.doesNotMatch(f.root.innerHTML,/ps-quality|Review quality/);
+ update({status:'review'});assert.match(f.root.innerHTML,/class="ps-quality">Lower-quality alternatives available · AAC 130 kbps · reported/);
+ update({status:'downloading',qualityApproval:low});assert.match(f.root.innerHTML,/class="ps-quality">Lower-quality download approved/);
 });
 
 test('initial lower-quality originals are distinguished from a finished search and previews stay explicit',async()=>{
