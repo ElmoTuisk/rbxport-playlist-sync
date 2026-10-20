@@ -12,3 +12,4 @@ cookies*.txt
 .install-cache/
 .installer-test/
 installed.json
+LOCAL_WORKSPACE.md

@@ -159,6 +159,8 @@ Settings and downloads are stored in `%LOCALAPPDATA%\rbxport-playlist-sync`. Use
 
 ## More information
 
+[Project overview and current status](PROJECT_OVERVIEW.md) · [Contributor notes](AGENTS.md)
+
 [Full add-on guide](docs/addon-guide.md) · [Validation and limitations](docs/validation.md) · [Architecture](docs/architecture.md) · [Upload to GitHub](docs/github-upload.md)
 
 Independent add-on using rbxport’s opt-in Windows automation connection; no official plugin loader or host rebuild. It may need updating after a rbxport release. Mac and ARM64 setup are not supported.

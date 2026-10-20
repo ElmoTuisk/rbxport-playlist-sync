@@ -60,7 +60,7 @@ try {
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $item[1]) { throw "Extracted checksum failed: $($item[0])" }
     }
 } finally { $archive.Dispose() }
-$include = @('src', 'public', 'scripts', 'docs', 'README.md', 'CHANGELOG.md', 'LICENSE', 'package.json', 'manifest.json', 'dependencies.json', 'Start-Playlist-Sync.ps1', 'Stop-Playlist-Sync.ps1', 'Launch-Playlist-Sync.cmd')
+$include = @('src', 'public', 'scripts', 'docs', 'README.md', 'PROJECT_OVERVIEW.md', 'AGENTS.md', 'CHANGELOG.md', 'LICENSE', 'package.json', 'manifest.json', 'dependencies.json', 'Start-Playlist-Sync.ps1', 'Stop-Playlist-Sync.ps1', 'Launch-Playlist-Sync.cmd')
 foreach ($item in $include) {
     $source = Join-Path $PSScriptRoot $item
     if ((Get-Item -LiteralPath $source).PSIsContainer) {

@@ -1,0 +1,75 @@
+# Project overview
+
+Updated 20 October 2026. Current release: **v0.10.2**, experimental Windows x64 add-on for rbxport.
+
+[Install and use](README.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
+
+## Purpose and product direction
+
+Link Spotify and SoundCloud playlists to rbxport, reuse recordings already in the collection, acquire missing recordings from accessible sources and preserve source order. The interface should stay small: one sidebar entry beneath Tag List, a popup and linked-playlist symbols. Avoid a separate dashboard or a growing collection of tabs.
+
+The reliability target is approximately 95% automatic completion across varied playlist tests, at the best accessible quality allowed by the user's policy. That rate has **not** been established. Report new downloads, existing-file reuse, quality holds, unavailable sources and pending songs separately.
+
+## What is implemented
+
+| Area | Current behavior |
+| --- | --- |
+| Playlist links | Spotify/SoundCloud sources linked to existing or newly created rbxport playlists; optional scheduled sync while the app/service run |
+| Collection reuse | Search the whole collection, prefer unambiguous target members and retain saved decisions; bulk review for eligible existing matches |
+| Acquisition | SoundCloud originals/search, Newgrounds and YouTube discovery, plus optional Soulseek fallback; bounded retries and actual file validation |
+| Quality | Default MP3 320 kbps/lossless requirement; optional AAC 256 kbps policy; no lossy upscaling to satisfy the policy |
+| Lower-quality exceptions | Individual or reviewed bulk approvals for ordinary streams; artist-enabled SoundCloud originals accepted at their actual bitrate by default, with explicit labelling |
+| Artwork | Exact Spotify album/SoundCloud track artwork embedded in new MP3/M4A/approved FLAC downloads; preserve attached covers as fallback; unavailable artwork does not discard audio |
+| Ordering | Resolved source songs first in source order; extra local entries retained at the bottom in their existing relative order |
+| Cleanup | A deleted target clears its add-on records after a successful current-library check; audio files and reusable collection bindings are retained |
+| UI | Compact popup, progress/cancel, source review, quality approvals and linked-playlist badges; current verified file status takes priority over old lower-quality alternatives |
+| Packaging | Setup ZIP, verified private runtime/tools, separate saved data, manual updates and GitHub Actions publication after both CI platforms pass |
+
+## How it integrates
+
+This is an independent add-on, not an official rbxport plugin loaded by a permanent extension API. A Node.js 24 service connects to rbxport's opt-in local WebView automation port and uses guarded existing commands. It injects the sidebar button and popup into the running window. It does not edit the host executable or open/write the music database directly.
+
+The Playlist Sync shortcut starts the host with its connection enabled. Launching the ordinary rbxport/Store app by itself does not start the add-on. There is no automatic login task or automatic updater. The service's temporary UI is deliberately removed/expired after it stops, so stale badges cannot claim a playlist is synced.
+
+**Compatibility:** Windows rbxport 1.9.0 is the tested host. Store build 0.19.3 lacks the required `database_drives` library-identity command. v0.10.2 excludes that older package from automatic selection and verifies an attached, visible sidebar button before reporting launch success. Later builds still need compatibility checks; version-based discovery alone is not proof of compatibility.
+
+## Code map
+
+| Location | Responsibility |
+| --- | --- |
+| `src/server.mjs` | Paired local API, OAuth callback, UI model and host coordination |
+| `src/engine.mjs`, `src/store.mjs` | Serialized jobs, saved links/approvals, library checks, ordering, reconciliation and SQLite state |
+| `src/bridge.mjs`, `src/host-ui.mjs` | Guarded host commands, connection, sidebar insertion and popup lifecycle |
+| `public/panel.mjs`, `public/style.css` | Shared compact interface and quality/progress wording |
+| `src/providers.mjs`, `src/soundcloud.mjs` | Complete source snapshots, Spotify authentication and bounded public SoundCloud hints |
+| `src/downloads.mjs`, `src/quality.mjs`, `src/matching.mjs` | Discovery, recording/version/duration checks, staging, audio verification and publication |
+| `src/artwork.mjs`, `src/soulseek.mjs` | Cover retrieval/embedding preparation and optional peer fallback |
+| `scripts/Desktop.ps1`, root launch/install scripts | Executable discovery, startup readiness, setup and shortcuts |
+| `test/` | Isolated engine/renderer/launcher/API fixtures and real synthetic audio checks |
+| `.github/workflows/test.yml` | Windows/Linux CI; source-only setup ZIP, checksum and release publication for matching version tags |
+
+## Validation and current status
+
+v0.10.2 passed **130 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. Its GitHub Windows/Linux checks and release publication also succeeded. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
+
+The mainstream EDM playlist exercised successful Soulseek acquisition and embedded covers. One reported 320 kbps download was independently checked: its source/output codec, bitrate and duration matched and its compressed audio packet hash was unchanged. Discovery audits covered five linked playlist snapshots; these were not five complete acquisition benchmarks.
+
+The latest startup changes are installed in the source/portable files. **Restoration of the missing icon in the user's current window has not been verified.** Live desktop control was stopped at the user's request. Do not replace this distinction with a claim that the running app was repaired.
+
+The game-music playlist was a test reference only. No game-music audio should be acquired/imported as part of that test.
+
+## Next work
+
+1. Confirm the fixed startup/sidebar flow in a user-authorized live session with a compatible host, including a normal close/relaunch and a service restart.
+2. Finish representative full acquisition runs and record denominators, actual source quality, retries, quality holds and completion time. Establish evidence before making a 95% claim.
+3. Improve compatibility diagnostics and investigate additional host versions without guessing the open library or weakening identity guards.
+4. Improve update cleanup: matching installed files are overwritten today, but obsolete program files are not removed automatically. Preserve saved data and music.
+5. Keep the UI and background work small as reliability improves. Existing measures include bounded caches, serial acquisition, coalesced progress and skipping hidden/unchanged renders.
+
+## Development and release
+
+Use Node.js 24. Run `node --test test/*.test.mjs`; set `FFMPEG` and `FFPROBE` to installed executables to include the real audio tests locally. Windows is needed for the PowerShell/DPAPI checks. Use synthetic audio and fixture libraries for routine work.
+
+For a release, update current version fields in `package.json`, `manifest.json`, `Install-Playlist-Sync.ps1`, `Package-Addon.ps1`, README and current install/upload guidance. Add a changelog entry and update validation evidence; keep historical entries intact. Push the source and a matching `vX.Y.Z` tag. GitHub Actions waits for both test platforms, packages the allowlisted source, rejects private-data entries, writes SHA-256 checksums and publishes the release. A failed build must not be presented as a published update.
+
+Do not commit or package credentials, pairing URLs, cookies, private diagnostics, music, `.local-data`, `.runtime` or `.tools`. The runtime's saved state remains separate from the source checkout. See `AGENTS.md` for maintenance rules.
