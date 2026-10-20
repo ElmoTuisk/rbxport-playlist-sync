@@ -4,9 +4,10 @@ import { createHash } from 'node:crypto';
 import { run } from './process.mjs';
 import { candidateFormats, inspectAudio, lowerQualityFormats, audioCodec, officialFormat, previewFormat } from './quality.mjs';
 import { SoundCloudPages } from './soundcloud.mjs';
-import { candidateCheck, durationCheck, searchVariants } from './matching.mjs';
+import { candidateCheck, durationCheck, searchVariants, version } from './matching.mjs';
 import { mediaUrl } from './providers.mjs';
 import {Artwork} from './artwork.mjs';
+import {startSearch} from './discovery.mjs';
 
 export class Downloads {
   constructor(settings, {runner = run, fetcher = fetch, clock = Date.now} = {}) { this.settings = settings; this.runner = runner; this.clock=clock; this.pages=new SoundCloudPages(fetcher,{clock}); this.metadataCache=new Map();this.artwork=new Artwork({settings,runner,fetcher,clock}); }
@@ -26,9 +27,28 @@ export class Downloads {
       officialDownload:{enabled:Boolean(hint?.downloadable),external:Boolean(hint?.external),title:hint?.downloadTitle || 'Artist download',available:info.formats?.some(f=>officialFormat(info,f)) || false}};
   }
   args() { const s = this.settings(); return ['--ignore-config', '--no-warnings', '--js-runtimes',`node:${process.execPath}`,'--socket-timeout','20','--retries','2','--fragment-retries','3', ...(s.cookiesFile ? ['--cookies', s.cookiesFile] : [])]; }
-  async metadata(url, { playlist = false, signal, limit, search = false } = {}) {
+  async metadata(url, { playlist = false, signal, limit, search = false, onEntry } = {}) {
     const s = this.settings();
     signal?.throwIfAborted();
+    if (onEntry && (!playlist || !search)) throw Error('Streaming is only allowed for candidate discovery, not source snapshots.');
+    if (onEntry) {
+      let emitted = 0;
+      const emit = info => {
+        if (!info || typeof info !== 'object' || Array.isArray(info) || ['url','url_transparent','playlist'].includes(info._type) || info.entries) throw Object.assign(Error('Unexpected search metadata shape'), { code: 'SEARCH_STREAM_SHAPE' });
+        emitted++; onEntry(info);
+      };
+      try {
+        const raw = await this.runner(s.ytdlp,[...this.args(),'--skip-download','--dump-json','--lazy-playlist','--ignore-no-formats-error','--yes-playlist','--ignore-errors',...(limit?['--playlist-end',String(limit)]:[]),'--',url],{
+          signal,timeout:90000,maxBytes:64*1024*1024,collectStdout:false,onLine:line=>{if(line.trim())emit(JSON.parse(line));},
+        });
+        if (!emitted && raw?.trim()) { const info=JSON.parse(raw); for (const entry of info.entries || [info]) if(entry)emit(entry); }
+        return {streamed:true};
+      } catch (error) {
+        if (signal?.aborted || !(error instanceof SyntaxError || error.code==='SEARCH_STREAM_SHAPE' || /dump-json|lazy-playlist|unknown option|unrecognized option/i.test(error.message))) throw error;
+        // Retain the original expanded search if a tool changes its stream shape.
+        return this.metadata(url,{playlist,signal,limit,search});
+      }
+    }
     const cached=!playlist && this.metadataCache.get(url);
     if(cached && cached.expires>this.clock() && cached.cookies===s.cookiesFile)return this.enrich(cached.info,signal);
     // Reading a playlist is independent of playable formats. Keep protected/unplayable
@@ -53,7 +73,7 @@ export class Downloads {
       unavailable:!info.formats?.length};
   }
   async *candidates(track, signal, report = () => {}) {
-    const variants = searchVariants(track), primary = variants[1] || variants[0] || track, query=variants.at(-1) || track;
+    const variants = searchVariants(track), primary = variants[1] && version(variants[1].title)===version(track.title) ? variants[1] : variants[0] || track, query=variants.at(-1) || track;
     const sources = [
       ...(track.provider === 'soundcloud' ? [{name:'SoundCloud original',url:mediaUrl(track.url)}] : []),
       {name:'SoundCloud search',url:`scsearch10:${primary.artist} ${primary.title}`,playlist:true},
@@ -66,23 +86,48 @@ export class Downloads {
         {name:'YouTube alternate search',url:`ytsearch5:${q.artist} ${q.title}`,playlist:true},
       ]),
     ];
-    const seen = new Set();
-    for (const source of sources) {
+    const seen = new Set(), jobs = new Map(), tasks = [];
+    const begin = (source, fresh = false) => {
+      if(fresh){jobs.get(source)?.cancel();jobs.delete(source);}
+      if(!jobs.has(source))jobs.set(source,startSearch((jobSignal,onEntry)=>this.metadata(source.url,{...source,signal:jobSignal,search:true,...(source.playlist?{onEntry}: {})}),signal,source.name==='Newgrounds search'?5:10));
+      const job=jobs.get(source);if(!tasks.includes(job))tasks.push(job);return job;
+    };
+    try { for (const source of sources) {
       signal?.throwIfAborted();
+      // Overlap the two broad providers, one process per provider. Original
+      // SoundCloud downloads are considered first; alternates remain lazy.
+      if(source.name==='SoundCloud search'){begin(source);begin(sources.find(s=>s.name==='YouTube search'));}
+      const prefetched = source.name==='YouTube search' && jobs.has(source);
       report({source:source.name,status:'searching',message:'Searching'});
       try {
-        const result = await this.metadata(source.url,{...source,signal,search:true});
-        const entries = result.entries || [result];
-        if (!entries.filter(Boolean).length) report({source:source.name,status:'empty',message:'No search results'});
-        for (const candidate of entries.filter(Boolean).slice(0,source.name==='Newgrounds search'?5:10)) {
-          const key = candidate.webpage_url || candidate.original_url || `${source.name}:${candidate.id}`;
-          if (seen.has(key)) continue; seen.add(key);
-          yield {...candidate,discoverySource:source.name};
+        let count=0;
+        for(let attempt=0;attempt<(prefetched?2:1);attempt++) {
+          try {
+            for await (const raw of begin(source).entries()) {
+              count++;
+              const candidate = source.playlist ? await this.enrich(raw,signal,{fetchMissing:raw.formats?.length>0&&raw.formats.every(previewFormat)}) : raw;
+              this.cache(candidate);
+              const key = candidate.webpage_url || candidate.original_url || `${source.name}:${candidate.id}`;
+              if (seen.has(key)) continue; seen.add(key);
+              yield {...candidate,discoverySource:source.name};
+            }
+            break;
+          } catch(error) {
+            if(signal?.aborted || !prefetched || attempt)throw error;
+            // Background failures are never negative-cached, even if the
+            // timeout/error arrives after we start consuming this provider.
+            report({source:source.name,status:'searching',message:'Retrying the earlier background search'});
+            begin(source,true);
+          }
         }
+        if(!count)report({source:source.name,status:'empty',message:'No search results'});
       } catch (error) {
         if (signal?.aborted) throw error;
         report({source:source.name,status:'unavailable',message:/403|401|sign.in|login/i.test(error.message) ? 'Source blocked or requires sign-in' : /429|rate.limit/i.test(error.message) ? 'Source rate limited' : 'Source request failed; trying another source'});
       }
+    } } finally {
+      for(const job of tasks)job.cancel();
+      await Promise.allSettled(tasks.map(job=>job.settled));
     }
   }
   async probe(path, signal) {

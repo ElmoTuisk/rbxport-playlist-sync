@@ -7,7 +7,7 @@ Setup, playlist actions, audio policies and troubleshooting in detail.
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.4-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.5-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
 3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
 4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
 5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
@@ -34,6 +34,8 @@ Available source songs go first, in source order. Extra local songs stay at the 
 A small **⇄** beside a linked playlist opens its details: green means synced, amber needs attention, blue is syncing, and grey is waiting for a check. Closing the panel keeps background sync running.
 
 ## Background performance
+
+Searches stream fully extracted metadata instead of waiting for all ten results before checking the first. Primary SoundCloud and YouTube metadata requests overlap, with at most two discovery providers active. Selection still follows the existing source order, artist-enabled originals remain first and alternate names stay lazy. Completed downloads, file validation and imports remain serial. A faster background result cannot override a preferred source. Unused searches are cancelled; a failed background search gets a fresh attempt at its normal turn. Source playlist snapshots still require a complete read.
 
 The add-on skips hidden/unchanged panel renders, builds All tracks only when expanded, reuses its installed UI code, coalesces progress updates and avoids redundant playlist-add commands. Original metadata is cached for five minutes in a bounded cache; public SoundCloud hints expire after ten minutes. Downloads and audio analysis still do work while active.
 

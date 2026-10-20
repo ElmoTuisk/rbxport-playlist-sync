@@ -2,7 +2,7 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental v0.10.4 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.10.5 · Tested with rbxport 1.9.0**
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,7 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-0.10.4-windows-setup.zip`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest), then **Extract All…**
+2. Download **`playlist-sync-0.10.5-windows-setup.zip`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest), then **Extract All…**
 3. Close rbxport and run **`Install-Playlist-Sync.cmd`**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not.
 4. Open the **Playlist Sync** Desktop or Start Menu shortcut, then click **Playlist sync** below **Tag List** in rbxport.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
@@ -120,6 +120,8 @@ This independent add-on uses a local automation connection, without an official 
 <summary><strong>Technical details & limitations</strong> — performance, testing and development</summary>
 
 Hidden/unchanged renders are skipped, metadata caches are bounded and acquisition runs serially. Downloads and analysis still use resources while active.
+
+Fully inspected search results now arrive as they are ready. SoundCloud/YouTube metadata searches overlap, with at most two providers active; source preference and all recording/audio checks stay the same. Unused searches are cancelled. [Search performance and test evidence](docs/validation.md#faster-candidate-discovery-0105).
 
 A 95% completion rate has **not** been established. Downloads, existing-file reuse and quality holds are counted separately. Only acquire audio you are entitled to download; format checks cannot prove a file was never upscaled before acquisition.
 

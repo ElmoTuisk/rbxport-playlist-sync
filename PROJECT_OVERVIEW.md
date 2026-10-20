@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 20 October 2026. Current release: **v0.10.4**, experimental Windows x64 add-on for rbxport.
+Updated 20 October 2026. Current release: **v0.10.5**, experimental Windows x64 add-on for rbxport.
 
 [Quick start](README.md) · [Detailed usage](docs/usage.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -17,6 +17,7 @@ The reliability target is approximately 95% automatic completion across varied p
 | Playlist links | Spotify/SoundCloud sources linked to existing or newly created rbxport playlists; optional scheduled sync while the app/service run |
 | Collection reuse | Search the whole collection, prefer unambiguous target members and retain saved decisions; bulk review for eligible existing matches |
 | Acquisition | SoundCloud originals/search, Newgrounds and YouTube discovery, plus optional Soulseek fallback; bounded retries and actual file validation |
+| Search performance | Stream complete candidate metadata as it arrives; overlap primary SoundCloud/YouTube with bounded queues and preserved source preference; cancel unused work |
 | Quality | Default MP3 320 kbps/lossless requirement; optional AAC 256 kbps policy; no lossy upscaling to satisfy the policy |
 | Lower-quality exceptions | Individual or reviewed bulk approvals for ordinary streams; artist-enabled SoundCloud originals accepted at their actual bitrate by default, with explicit labelling |
 | Artwork | Exact Spotify album/SoundCloud track artwork embedded in new MP3/M4A/approved FLAC downloads; preserve attached covers as fallback; unavailable artwork does not discard audio |
@@ -47,6 +48,7 @@ v0.10.4 clears saved playlist failures caused by that missing API once the same 
 | `public/panel.mjs`, `public/style.css` | Shared compact interface and quality/progress wording |
 | `src/providers.mjs`, `src/soundcloud.mjs` | Complete source snapshots, Spotify authentication and bounded public SoundCloud hints |
 | `src/downloads.mjs`, `src/quality.mjs`, `src/matching.mjs` | Discovery, recording/version/duration checks, staging, audio verification and publication |
+| `src/discovery.mjs`, `src/process.mjs` | Bounded ordered metadata streams, cancellation and safe child-process output |
 | `src/artwork.mjs`, `src/soulseek.mjs` | Cover retrieval/embedding preparation and optional peer fallback |
 | `scripts/Desktop.ps1`, root launch/install scripts | Executable discovery, startup readiness, setup and shortcuts |
 | `test/` | Isolated engine/renderer/launcher/API fixtures and real synthetic audio checks |
@@ -54,7 +56,7 @@ v0.10.4 clears saved playlist failures caused by that missing API once the same 
 
 ## Validation and current status
 
-v0.10.4 passed **135 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. The preceding v0.10.3 GitHub Windows/Linux checks and release publication also succeeded. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
+v0.10.5 passed **148 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. A read-only same-query metadata comparison fell from 37.65 to 16.01 seconds for all primary results, retaining ten SoundCloud and ten YouTube candidates; Newgrounds was unavailable in both. This is not a whole-playlist speed or completion guarantee. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
 
 The mainstream EDM playlist exercised successful Soulseek acquisition and embedded covers. One reported 320 kbps download was independently checked: its source/output codec, bitrate and duration matched and its compressed audio packet hash was unchanged. Discovery audits covered five linked playlist snapshots; these were not five complete acquisition benchmarks.
 

@@ -27,11 +27,38 @@ test('a failed or incorrectly advertised first file does not hide a valid second
  assert.equal(result.quality.bitrate,320);assert.equal(f.downloaded.length,2);
  assert(result.attempts.some(a=>a.status==='quality'));assert(result.attempts.some(a=>a.status==='verified'));
 });
+
+test('streamed and bulk discovery give the same verified outcome for wrong recordings, previews, DRM and low audio',async t=>{
+ const results=[];
+ for(const streaming of [false,true]){
+  const f=await fixture(t),updates=[],originalRunner=f.d.runner;
+  const entries=[candidate('wrong-title',{title:'Unrelated song'}),candidate('wrong-length',{duration:500}),candidate('wrong-version',{title:'Fixture Artist - Fixture Recording VIP'}),
+   candidate('drm',{_has_drm:true,formats:[{format_id:'protected',ext:'mp3',acodec:'mp3',abr:320,has_drm:true}]}),
+   candidate('low',{formats:[{format_id:'mp3-128',ext:'mp3',acodec:'mp3',abr:128}]}),
+   candidate('preview',{extractor:'soundcloud',duration:30,formats:[{format_id:'http_mp3_preview',ext:'mp3',acodec:'mp3',abr:128}]}),candidate('bad'),candidate('good')];
+  f.d.pages.track=async info=>info.id==='preview'?{duration:200,preview:true}:null;
+  f.d.metadata=(url,options)=>Downloads.prototype.metadata.call(f.d,url,streaming?options:{...options,onEntry:undefined});
+  f.d.runner=async(exe,args,options)=>{
+   if(args.includes('--skip-download')){
+    const found=args.at(-1).startsWith('scsearch')?entries:[];
+    if(args.includes('--dump-json')){for(const entry of found)options.onLine(JSON.stringify(entry));return '';}
+    return JSON.stringify({entries:found});
+   }return originalRunner(exe,args,options);
+  };
+  const result=await f.d.acquire(track,{id:streaming?'stream':'bulk'},update=>updates.push(update),new AbortController().signal);
+  assert.deepEqual(f.downloaded,[candidate('bad').webpage_url,candidate('good').webpage_url]);
+  assert(result.attempts.some(attempt=>attempt.status==='preview'));assert(result.attempts.some(attempt=>attempt.status==='protected'));
+  assert(result.attempts.some(attempt=>attempt.status==='mismatch'));assert(result.attempts.some(attempt=>attempt.status==='quality'));
+  results.push({sourceUrl:result.sourceUrl,quality:result.quality,offeredFormats:updates.flatMap(update=>update.lowerOptions||[]).map(option=>option.formatId)});
+ }
+ assert.deepEqual(results[0],results[1]);
+});
 test('a blocked provider does not stop discovery on another provider',async t=>{
  const f=await fixture(t);
  f.d.metadata=async(url)=>{f.requests.push(url);if(url.startsWith('scsearch'))throw Error('HTTP 403');return{entries:[candidate('good')]};};
  const result=await f.d.acquire(track,{id:'test'},()=>{},new AbortController().signal);
- assert.equal(result.quality.ok,true);assert.equal(f.requests.length,2);assert(result.attempts.some(a=>a.status==='unavailable'));
+ assert.equal(result.quality.ok,true);assert.equal(f.requests.length,3);assert(result.attempts.some(a=>a.status==='unavailable'));
+ assert.equal(result.attempts.find(a=>a.status==='verified').source,'Newgrounds search','A faster prefetched source must not override normal source preference');
 });
 
 test('metadata tolerates unavailable formats only while reading; complete source scans never ignore extraction errors',async()=>{
@@ -184,7 +211,7 @@ test('Spotify with/ft credits are search hints, not required title words; wrong 
 test('discovery reaches later results and tries distinct alternate names without weakening recording checks',async t=>{
  const f=await fixture(t),queries=[];
  f.d.metadata=async url=>{queries.push(url);return {entries:url.startsWith('scsearch10:')?[...Array.from({length:5},(_,i)=>candidate('wrong'+i,{duration:500})),candidate('good')]:[]};};
- await f.d.acquire(track,{id:'sixth'},()=>{},new AbortController().signal);assert.equal(queries.length,1);assert(f.downloaded[0].endsWith('/good'));
+ await f.d.acquire(track,{id:'sixth'},()=>{},new AbortController().signal);assert.equal(queries.length,2);assert(queries.some(q=>q.startsWith('ytsearch10:')));assert(f.downloaded[0].endsWith('/good'));
  queries.length=0;const mix={...track,title:'Fixture Recording - Alice Remix'};
  f.d.metadata=async url=>{queries.push(url);return {entries:[]};};
  for await(const c of f.d.candidates(mix))assert.fail('No fixture results');

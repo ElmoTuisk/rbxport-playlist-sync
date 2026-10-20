@@ -2,6 +2,21 @@
 
 Updated 20 October 2026. This record distinguishes tests from unverified integrations.
 
+## Faster candidate discovery 0.10.5
+
+All 148 local Windows tests passed with real FFmpeg/ffprobe and DPAPI enabled; none skipped. New regressions cover early delivery of complete metadata, a two-provider concurrency bound, preserved source preference and all ten results, later candidates, deduplication, lazy alternate names, original SoundCloud priority, failed-prefetch retries both before and during consumption, cancellation/cleanup, bounded queues and fallback from unexpanded stream records. A differential synthetic acquisition test returns the same verified recording and quality choices through streamed and bulk discovery while rejecting wrong titles, versions, lengths, DRM, previews and falsely advertised audio. Process tests cover split UTF-8, final unterminated lines, output limits, parser failures and cancellation.
+
+Read-only public metadata measurements used the pinned yt-dlp 2026.08.19, no account cookies and no audio downloads. One same-query comparison of the complete primary discovery pipeline returned ten SoundCloud and ten YouTube candidates in both versions; Newgrounds was unavailable in both. The existing pipeline took 16.70 seconds to return the first candidate and 37.65 seconds to exhaust the primary searches. The revised pipeline took 4.03 and 16.01 seconds respectively. This is one network-dependent metadata comparison, not a guaranteed playlist/transfer speedup.
+
+Separate same-query per-provider measurements also retained all ten results:
+
+| Provider | Former wait for first candidate (whole batch) | Streamed first candidate | Streamed complete batch |
+| --- | ---: | ---: | ---: |
+| SoundCloud | 10.78 s | 4.25 s | 10.29 s |
+| YouTube | 16.02 s | 5.49 s | 15.24 s |
+
+Result counts, retries/timeouts, source order, quality approval and actual audio validation remain in place. Metadata comes from full extraction, not flat URL stubs. Only the primary SoundCloud/YouTube metadata requests overlap; artist-enabled originals are checked before them, alternate queries remain lazy and completed-file publication/import stay serial. No acquisition-completion target or whole-playlist performance claim is established by these measurements.
+
 ## README layout refresh — documentation only
 
 GitHub's Markdown API successfully rendered the shortened README and the preserved detailed usage guide. The rendered README contains eight balanced, initially collapsed details/summary sections. A local check verified 30 relative file/image references and linked heading targets across the README, usage guide and project overview. Default visible text fell from roughly 3,000 words to roughly 300, including topic summaries; both screenshots and the quick-start installation steps remain. No runtime code changed, so the application test suite was not rerun for this documentation-only update.

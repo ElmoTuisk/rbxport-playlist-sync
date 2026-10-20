@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.10.5 — 2026-10-20
+
+- Stream fully extracted candidate metadata as it arrives instead of waiting for every search result. Overlap the primary SoundCloud/YouTube metadata searches while preserving original-download priority, provider order, result limits, lazy alternate names and all recording/audio checks.
+- Bound background discovery to two providers, cancel unused work and retry failed prefetches at their normal turn. Source playlist snapshots still require complete metadata; unexpanded/malformed search streams fall back to the previous bulk extraction.
+- Avoid retaining duplicate streamed stdout, preserve UTF-8 across output chunks, handle final lines without a newline and propagate parser errors safely. Keep remix labels in single-artist primary searches.
 
 - Shorten the GitHub README to a quick start, screenshots and feature overview, with eight expandable help topics. Keep the longer instructions in `docs/usage.md`.
 

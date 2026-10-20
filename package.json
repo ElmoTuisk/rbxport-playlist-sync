@@ -1,6 +1,6 @@
 {
   "name": "rbxport-playlist-sync-addon",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "private": true,
   "type": "module",
   "license": "GPL-2.0-or-later",
