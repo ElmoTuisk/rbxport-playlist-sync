@@ -9,7 +9,6 @@ function Find-PlaylistSyncBrowser {
     )) { if (Test-Path -LiteralPath $candidate) { return $candidate } }
     throw 'Microsoft Edge or Google Chrome is required to display the add-on window. Install either browser, then launch Playlist Sync again.'
 }
-
 function Get-PlaylistSyncPackagedRbxport {
     if (-not (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue)) { return }
     try {
@@ -78,4 +77,11 @@ function Connect-PlaylistSyncHost {
         }
     }
     throw "Playlist Sync started, but could not attach its sidebar button to rbxport. Close rbxport normally and open Playlist Sync again. Details: $hostFailure"
+}
+function Test-PlaylistSyncServiceListening {
+    $client = New-Object Net.Sockets.TcpClient
+    try {
+        $pending = $client.ConnectAsync('127.0.0.1',43821)
+        return ($pending.Wait(500) -and $client.Connected)
+    } catch { return $false } finally { $client.Dispose() }
 }

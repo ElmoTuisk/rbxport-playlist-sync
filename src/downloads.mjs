@@ -8,9 +8,10 @@ import { candidateCheck, durationCheck, searchVariants, version } from './matchi
 import { mediaUrl } from './providers.mjs';
 import {Artwork} from './artwork.mjs';
 import {startSearch} from './discovery.mjs';
+import {Spotisaver} from './spotisaver.mjs';
 
 export class Downloads {
-  constructor(settings, {runner = run, fetcher = fetch, clock = Date.now} = {}) { this.settings = settings; this.runner = runner; this.clock=clock; this.pages=new SoundCloudPages(fetcher,{clock}); this.metadataCache=new Map();this.artwork=new Artwork({settings,runner,fetcher,clock}); }
+  constructor(settings, {runner = run, fetcher = fetch, clock = Date.now} = {}) { this.settings = settings; this.runner = runner; this.clock=clock; this.pages=new SoundCloudPages(fetcher,{clock}); this.metadataCache=new Map();this.artwork=new Artwork({settings,runner,fetcher,clock});this.spotisaver=new Spotisaver({fetcher,clock}); }
   cache(info) {
     if(!info.webpage_url || !/^soundcloud(?::|$)/i.test(info.extractor || info.extractor_key || ''))return;
     const keys=['id','title','track','artist','uploader','duration','webpage_url','original_url','extractor','extractor_key','_has_drm','has_drm','is_live','live_status','sourcePreview','durationUnverified','officialDownload'];
@@ -159,12 +160,15 @@ export class Downloads {
     if(!normal&&!lowerOptions.length)throw Error(candidate._has_drm || candidate.has_drm?'Selected source is DRM-protected. Choose another URL.':'Selected source offers no supported audio format. Your URL has been kept.');
     return {normal,lowerOptions};
   }
-  async acquire(track, job, update, signal) {
+  async acquire(track, job, update, signal, {spotisaverOnly=false} = {}) {
+    signal?.throwIfAborted();
     if(track.sourceAudio?.durationUnverified)throw Object.assign(Error('SoundCloud exposed only a preview and the full recording length could not be verified. Refresh the source or select a complete local recording.'),{code:'QUALITY_REVIEW'});
     const s = this.settings(), root = resolve(s.musicFolder), work = join(root, '.staging', job.id);
+    const spotisaverAllowed=track.provider==='spotify' && ['first','fallback'].includes(s.spotisaverMode) && !job.overrideUrl && !job.qualityApproval && !job.originalOnly && job.acquisition!=='manual';
+    if(spotisaverOnly && (!spotisaverAllowed || s.spotisaverMode!=='fallback' || job.sourcePath))throw Object.assign(Error('Spotisaver last resort is not available for this source choice.'),{code:'QUALITY_REVIEW'});
     await mkdir(work, { recursive: true });
     let sourcePath = job.sourcePath, sourceUrl = job.sourceUrl, sourceReport = job.sourceReport;
-    const attempts = [],lowerOptions=[...(job.lowerOptions || [])],approval=job.qualityApproval,verifyOptions={allowLower:Boolean(approval || (job.sourceReport?.officialOriginal && s.allowLowerOfficial!==false))};
+    const attempts = spotisaverOnly?[...(job.attempts || [])].slice(-30):[],lowerOptions=[...(job.lowerOptions || [])],approval=job.qualityApproval,verifyOptions={allowLower:Boolean(approval || (job.sourceReport?.officialOriginal && s.allowLowerOfficial!==false))};
     const offer=option=>{
       const existing=lowerOptions.findIndex(o=>o.url===option.url&&o.formatId===option.formatId);
       if(existing>=0){if(lowerOptions[existing].verified&&!option.verified)return;lowerOptions.splice(existing,1);}
@@ -180,10 +184,36 @@ export class Downloads {
         throw Object.assign(Error('The source quality changed. Confirm the newly verified lower-quality file before importing.'),{code:'LOWER_CONFIRM'});
       }return {...actual,...(original?{officialOriginal:true}:{})};
     };
-    if (sourcePath) { const wasOfficial=sourceReport?.officialOriginal;sourceReport = await checkApproval(sourcePath,{localFile:!approval?.url && !job.overrideUrl,webpage_url:sourceUrl || approval?.url || track.url,title:track.title,duration:track.duration},{format_id:approval?.formatId || 'local'});if(wasOfficial)sourceReport.officialOriginal=true; }
+    if (sourcePath) {
+      const previous=sourceReport;
+      sourceReport = await checkApproval(sourcePath,{localFile:!approval?.url && !job.overrideUrl,webpage_url:sourceUrl || approval?.url || track.url,title:track.title,duration:track.duration},{format_id:approval?.formatId || 'local'});
+      if(previous?.officialOriginal)sourceReport.officialOriginal=true;
+      if(previous?.sourceService==='spotisaver'){
+        if(sourceReport.codec!=='mp3'||sourceReport.bitrate!==320)throw Error('Quality check failed: Spotisaver source must remain 320 kbps MP3.');
+        Object.assign(sourceReport,{sourceService:'spotisaver',upstreamQuality:'unverified'});
+      }
+    }
     else {
-      update({ status: 'searching', message: 'Searching original sources and verifying candidate audio', attempts:[],originalOnly:false });
-      const candidates = job.overrideUrl ? [await this.metadata(mediaUrl(job.overrideUrl), { signal })] : this.candidates(track, signal, report);
+      update({ status: 'searching', message: spotisaverOnly?'Trying Spotisaver as the last resort':'Searching original sources and verifying candidate audio', attempts:[...attempts],originalOnly:false });
+      const trySpotisaver=async()=>{
+        if(!spotisaverAllowed)return;
+        report({source:'Spotisaver',status:'searching',message:'Checking the service; upstream audio quality is undisclosed'});
+        try {
+          const result=await this.spotisaver.acquire(track,work,this,update,signal);
+          // Keep this boundary strict even if a future adapter changes.
+          if(!result.sourceReport?.ok || result.sourceReport.codec!=='mp3' || result.sourceReport.bitrate!==320)throw Error('Invalid Spotisaver audio result');
+          sourcePath=result.sourcePath;sourceUrl=result.sourceUrl;
+          sourceReport={...result.sourceReport,sourceService:'spotisaver',upstreamQuality:'unverified'};
+          update({sourcePath,sourceUrl,sourceReport,sourceFormat:{codec:'mp3',bitrate:320}});
+          report({source:'Spotisaver',status:'verified',message:'320 kbps MP3 encoding and recording checks passed; original source quality unverified'});
+        } catch(error) {
+          signal?.throwIfAborted();
+          update({status:'searching',progress:''});
+          report({source:'Spotisaver',status:'unavailable',message:error.code==='SPOTISAVER_UNAVAILABLE'?error.message:'Spotisaver file failed validation'});
+        }
+      };
+      if(s.spotisaverMode==='first' || spotisaverOnly)await trySpotisaver();
+      const candidates = sourcePath || spotisaverOnly ? [] : job.overrideUrl ? [await this.metadata(mediaUrl(job.overrideUrl), { signal })] : this.candidates(track, signal, report);
       let downloads = 0;
       for await (const candidate of candidates) {
         signal?.throwIfAborted();
@@ -250,10 +280,12 @@ export class Downloads {
       ...(copy ? ['-c:a', 'copy'] : compatibility?['-c:a','flac','-sample_fmt','s32']:['-c:a', 'libmp3lame', '-b:a', '320k']),
       '-metadata', `title=${track.title}`, '-metadata', `artist=${track.artist}`,
       ...(track.album?['-metadata',`album=${track.album}`]:[]),...(extension==='mp3'?['-id3v2_version','3']:[]),
+      ...(sourceReport.sourceService==='spotisaver'?['-metadata','comment=Spotisaver: verified 320 kbps MP3 file encoding; original source quality unverified']:[]),
       ...(sourceReport.belowStandard?['-metadata',`comment=Approved lower-quality source: ${sourceReport.codec.toUpperCase()} ${sourceReport.bitrate?Math.round(sourceReport.bitrate)+' kbps':'bitrate unknown'}${compatibility?'; decoded to FLAC for playback, not a lossless original':''}`]:[]),temp], { signal, timeout: 600000 });
     try{await publish(cover.path);}catch(error){if(!cover.path || signal?.aborted)throw error;cover.path=null;await publish(null);}
     const outputQuality = await this.verify(temp, track, signal, true,verifyOptions);
-    const quality={...outputQuality,belowStandard:Boolean(sourceReport.belowStandard),sourceCodec:sourceReport.codec,sourceBitrate:sourceReport.bitrate,officialOriginal:Boolean(sourceReport.officialOriginal)};
+    if(sourceReport.sourceService==='spotisaver' && (outputQuality.codec!=='mp3'||outputQuality.bitrate!==320))throw Error('Quality check failed: Spotisaver output must remain 320 kbps MP3.');
+    const quality={...outputQuality,belowStandard:Boolean(sourceReport.belowStandard),sourceCodec:sourceReport.codec,sourceBitrate:sourceReport.bitrate,officialOriginal:Boolean(sourceReport.officialOriginal),...(sourceReport.sourceService==='spotisaver'?{sourceService:'spotisaver',upstreamQuality:'unverified'}:{})};
     const key = createHash('sha256').update(track.key).digest('hex').slice(0, 16);
     const safe = `${track.artist} - ${track.title}`.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 130);
     const qualityLabel=quality.belowStandard?` [LOWER ${sourceReport.codec.toUpperCase()} ${sourceReport.bitrate?Math.round(sourceReport.bitrate)+'k':'bitrate-unknown'}]`:'';

@@ -1,7 +1,7 @@
-param([string]$NodePath, [string]$RbxportPath, [Alias('NoBrowser')][switch]$NoWindow, [switch]$Detached)
+param([string]$NodePath, [string]$RbxportPath, [Alias('NoBrowser')][switch]$NoWindow, [switch]$Detached, [switch]$Background, [switch]$PauseAutomatic)
 $ErrorActionPreference = 'Stop'
 trap {
-    if (-not $NoWindow) {
+    if (-not $NoWindow -and -not $Background) {
         Add-Type -AssemblyName System.Windows.Forms
         [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Playlist Sync', 'OK', 'Error') | Out-Null
     } else { Write-Error $_ -ErrorAction Continue }
@@ -17,6 +17,7 @@ if (-not $NodePath) {
 }
 $nodeVersion = & $NodePath --version
 if ($LASTEXITCODE -ne 0 -or [int]($nodeVersion.TrimStart('v').Split('.')[0]) -lt 24) { throw 'Run Install-Playlist-Sync.cmd to set up the private runtime.' }
+if (-not $Background) {
 $RbxportPath = Find-PlaylistSyncRbxport $RbxportPath
 if ($Detached -and -not $NoWindow) { $browserPath = Find-PlaylistSyncBrowser }
 $automationReady = $false
@@ -27,6 +28,7 @@ if (-not $automationReady) {
     try { $env:RBXPORT_DEVTOOLS_PORT = '43822'; Start-Process -FilePath $RbxportPath -WindowStyle Hidden }
     finally { if ($null -eq $oldPort) { Remove-Item Env:RBXPORT_DEVTOOLS_PORT -ErrorAction SilentlyContinue } else { $env:RBXPORT_DEVTOOLS_PORT = $oldPort } }
 }
+}
 $serviceReady = $false
 try { $null = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:43821/' -TimeoutSec 2; $serviceReady = $true } catch { }
 $launchFile = Join-Path $stateDirectory 'launch-url.txt'
@@ -34,6 +36,7 @@ if ($serviceReady -and -not (Test-Path -LiteralPath $launchFile)) { throw 'A dif
 if (-not $serviceReady) {
     $entry = Join-Path $addonRoot 'src\server.mjs'
     $processArgs = @(('"' + $entry + '"'), '--data-dir', ('"' + $stateDirectory + '"'))
+    if ($PauseAutomatic) { $processArgs += '--pause-automatic' }
     $service = Start-Process -FilePath $NodePath -ArgumentList $processArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $stateDirectory 'service.log') -RedirectStandardError (Join-Path $stateDirectory 'service-error.log')
     Set-Content -LiteralPath (Join-Path $stateDirectory 'service.pid') -Value $service.Id
 }
@@ -43,6 +46,7 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
     Start-Sleep -Milliseconds 250
 }
 if (-not $serviceReady) { throw "The service did not start. See $stateDirectory\service-error.log" }
+if ($Background) { Write-Output 'Playlist Sync is waiting in the background for rbxport.'; return }
 $launchUrl = (Get-Content -LiteralPath $launchFile -Raw).Trim()
 $windowArguments = Get-PlaylistSyncWindowArguments $launchUrl (Join-Path $stateDirectory 'window-profile')
 $hostConnection = Connect-PlaylistSyncHost $launchUrl

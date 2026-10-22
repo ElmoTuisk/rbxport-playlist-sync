@@ -9,7 +9,7 @@ export function fitPopover(viewport, anchor, panel, margin = 12) {
     top: Math.max(top + margin, Math.min(anchor.top, top + viewport.height - margin - height)) };
 }
 
-export const HOST_UI_VERSION=19;
+export const HOST_UI_VERSION=23;
 export function installHostUi(model, mountPanel, css, fitPopover, version=19) {
   const key = '__rbxportPlaylistSync';
   if (window[key] && window[key].version !== version) window[key].dispose();

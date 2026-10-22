@@ -66,6 +66,89 @@ test('preview is read-only; sync follows source order and retains extras; repeat
   await f.engine.sync(f.link.id); assert.equal(f.calls.filter(m => m === 'reorder').length, 1);
   f.remote(['a']); await f.engine.sync(f.link.id); assert.deepEqual(f.target, ['a', 'b', 'x', 'y']);
 });
+
+test('Spotisaver order is opt-in and imported rows retain undisclosed upstream quality',async t=>{
+ const f=await fixture(t);assert.equal(f.engine.settings().spotisaverMode,'off');
+ for(const mode of ['first','fallback','off']){f.engine.saveSettings({spotisaverMode:mode});assert.equal(f.engine.settings().spotisaverMode,mode);}
+ assert.throws(()=>f.engine.saveSettings({spotisaverMode:'any-bitrate'}),/source order/);assert.equal(f.engine.settings().spotisaverMode,'off');
+ f.remote(['new']);f.downloads.acquire=async()=>({file:f.path,quality:{ok:true,codec:'mp3',bitrate:320,sourceService:'spotisaver',upstreamQuality:'unverified'}});
+ await f.engine.sync(f.link.id);
+ assert.equal(f.engine.rows(f.link.id)[0].status,'ready');
+ assert.equal(f.engine.rows(f.link.id)[0].audioQuality.upstreamQuality,'unverified');
+ assert.equal(f.engine.settings().quality,'strict-mp3-320');
+});
+
+async function spotifyFixture(t){
+ const f=await fixture(t);
+ f.engine.providers.playlist=async()=>({name:'Test',revision:'revision',tracks:[{provider:'spotify',key:'spotify:new',title:'new',artist:'Artist',duration:200}]});
+ f.engine.saveSettings({spotisaverMode:'fallback'});return f;
+}
+
+test('last resort tries web then Soulseek then Spotisaver, stopping at the first verified file',async t=>{
+ for(const outcome of ['web','peer','spotisaver','peer-disabled','peer-unavailable','peer-invalid']){
+  const f=await spotifyFixture(t),order=[];
+  f.downloads.acquire=async(track,job,update,signal,options={})=>{
+   if(options.spotisaverOnly){
+    order.push('spotisaver');assert.equal(job.sourcePath,null);assert.equal(job.sourceReport,null);assert.equal(job.sourceUrl,null);
+    assert.equal(job.attempts[0].source,'Web');
+    if(outcome!=='peer-disabled')assert(job.attempts.some(a=>a.source==='Soulseek'));
+    return{file:f.path,attempts:[...job.attempts,{source:'Spotisaver',status:'verified'}],quality:{codec:'mp3',bitrate:320,sourceService:'spotisaver',upstreamQuality:'unverified'}};
+   }
+   if(job.sourcePath){order.push('publish-peer');if(outcome==='peer-invalid')throw Error('Quality check failed: invalid peer file');return{file:f.path};}
+   order.push('web');if(outcome==='web')return{file:f.path};
+   update({sourcePath:f.path,sourceReport:{codec:'mp3',bitrate:128},attempts:[{source:'Web',status:'quality',message:'Rejected file'}]});
+   throw Object.assign(Error('No verified web source'),{code:'QUALITY_REVIEW'});
+  };
+  f.downloads.soulseek={enabled:outcome!=='peer-disabled',async acquire(track,job,update){
+   order.push('soulseek');assert.equal(job.sourcePath,null,'Rejected web file must not masquerade as a peer file');
+   update({attempts:[{source:'Soulseek',status:'searching',message:'Checking peers'}]});
+   if(['peer','peer-invalid'].includes(outcome))return{sourcePath:f.path,sourceReport:{codec:'mp3',bitrate:320},sourceUrl:'soulseek:fixture'};
+   throw Object.assign(Error('No peer source'),{code:outcome==='peer-unavailable'?'SOULSEEK_CONNECTION':'QUALITY_REVIEW'});
+  }};
+  const run=await f.engine.sync(f.link.id);assert.equal(run.ready,1);assert.equal(run.attention,0);
+  assert.deepEqual(order,outcome==='web'?['web']:outcome==='peer'?['web','soulseek','publish-peer']:outcome==='peer-disabled'?['web','spotisaver']:outcome==='peer-invalid'?['web','soulseek','publish-peer','spotisaver']:['web','soulseek','spotisaver']);
+  if(order.at(-1)==='spotisaver')assert.equal(f.engine.rows(f.link.id)[0].audioQuality.upstreamQuality,'unverified');
+ }
+});
+
+test('last resort respects cancellation, peer account/setup failures and requested Soulseek-only retries',async t=>{
+ for(const code of ['SOULSEEK_AUTH','SOULSEEK_SETUP','cancelled','retry-peer']){
+  const f=await spotifyFixture(t),order=[];
+  f.downloads.acquire=async(track,job,update,signal,options={})=>{assert(!options.spotisaverOnly);order.push('web');throw Object.assign(Error('No web file'),{code:'QUALITY_REVIEW'});};
+  f.downloads.soulseek={enabled:true,async acquire(){order.push('soulseek');if(code==='cancelled')f.engine.cancel();throw Object.assign(Error('Peer request stopped'),{code:code==='retry-peer'?'QUALITY_REVIEW':code});}};
+  const run=await f.engine.sync(f.link.id,code==='retry-peer'?{soulseek:true}:{});
+  assert.deepEqual(order,code==='retry-peer'?['soulseek']:['web','soulseek']);
+  assert.equal(run.ready,0);assert(!f.calls.includes('import'));
+  if(['SOULSEEK_AUTH','SOULSEEK_SETUP'].includes(code))assert.equal(run.status,'failed');
+ }
+});
+
+test('Spotisaver final failures wait for Retry missing and preserve the complete attempt history',async t=>{
+ const f=await spotifyFixture(t),order=[];
+ f.downloads.acquire=async(track,job,update,signal,options={})=>{
+  const source=options.spotisaverOnly?'Spotisaver':'Web';order.push(source);
+  update({attempts:[...(options.spotisaverOnly?job.attempts:[]),{source,status:'unavailable'}]});
+  throw Object.assign(Error('No verified file'),{code:'QUALITY_REVIEW'});
+ };
+ f.downloads.soulseek={enabled:true,async acquire(){order.push('Soulseek');throw Object.assign(Error('No peer file'),{code:'QUALITY_REVIEW'});}};
+ assert.equal((await f.engine.sync(f.link.id)).attention,1);
+ assert.deepEqual(order,['Web','Soulseek','Spotisaver']);
+ assert.deepEqual(f.store.all('jobs')[0].attempts.map(a=>a.source),order);
+ await f.engine.sync(f.link.id);assert.equal(order.length,3,'Held final failures must not automatically repeat peer/service searches');
+ await f.engine.sync(f.link.id,{cached:true,retryMissing:true});assert.deepEqual(order,['Web','Soulseek','Spotisaver','Web','Soulseek','Spotisaver']);
+});
+
+test('last resort leaves explicit source decisions and non-Spotify rows unchanged',async t=>{
+ for(const choice of [{overrideUrl:'https://soundcloud.com/fixture/track'},{acquisition:'manual'},{sourcePath:'local'},{qualityApproval:{}},{originalOnly:true},{provider:'soundcloud'}]){
+  const f=await spotifyFixture(t);await f.engine.sync(f.link.id,{preview:true});
+  let row=f.engine.rows(f.link.id)[0];if(choice.provider)row={...row,track:{...row.track,provider:choice.provider}};
+  const id=createHash('sha256').update(f.engine.bindingKey(f.link.libraryId,row.track.key)).digest('hex');
+  f.store.put('jobs',id,{id,status:'queued',...choice,...(choice.sourcePath?{sourcePath:f.path}:{})});
+  f.downloads.acquire=async(track,job,update,signal,options={})=>{assert(!options.spotisaverOnly);throw Object.assign(Error('No chosen file'),{code:'QUALITY_REVIEW'});};
+  assert.equal(await f.engine.processTrack(f.link,row,new AbortController().signal),false);
+  assert(!f.calls.includes('import'));
+ }
+});
 test('partial source response retains the previous snapshot and never writes library', async t => {
   const f = await fixture(t); await f.engine.sync(f.link.id, { preview: true }); const before = f.engine.rows(f.link.id);
   f.remote(null); const run = await f.engine.sync(f.link.id);

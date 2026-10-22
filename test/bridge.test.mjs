@@ -11,6 +11,23 @@ test('host diagnostics omit injected script stacks without dropping the useful e
   assert.equal(hostErrorMessage({}), 'rbxport operation failed');
 });
 
+test('independent add-ons share a native write lease without changing library guards',async()=>{
+  const bridge=new Bridge();bridge.socket={readyState:WebSocket.OPEN};let expression;
+  bridge.request=async(method,args)=>{expression=args.expression;};
+  await bridge.call('add',{libraryId:'fixture',playlistId:'target',ids:['song']});
+  const write=new Function('window','return '+expression);let additions=0,finish;
+  const window={__rbxportAddonWriteLease:{owner:'playlist-wizard'},__TAURI_INTERNALS__:{invoke:async(name)=>{
+    if(name==='database_drives')return [{current:true,masterDb:'FIXTURE'}];
+    if(name==='playlist_duplicates')return [];
+    if(name==='add_tracks_to_playlist'){additions++;await new Promise(resolve=>{finish=resolve;});}
+  }}};
+  await assert.rejects(write(window),/Another add-on/);assert.equal(additions,0);assert.equal(window.__rbxportAddonWriteLease.owner,'playlist-wizard');
+  delete window.__rbxportAddonWriteLease;const pending=write(window);
+  for(let i=0;i<5&&!finish;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(window.__rbxportAddonWriteLease.owner,'playlist-sync');await assert.rejects(write(window),/Another add-on/);
+  finish();await pending;assert.equal(window.__rbxportAddonWriteLease,undefined);assert.equal(additions,1);
+});
+
 test('UI transport attaches before optional library validation, with guarded validation still the default', async t => {
   t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => [{ type: 'page', url: 'http://tauri.localhost/', webSocketDebuggerUrl: 'ws://127.0.0.1:43822/fixture' }] }));
   t.mock.property(globalThis, 'WebSocket', class {

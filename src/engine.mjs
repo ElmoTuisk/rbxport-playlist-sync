@@ -15,7 +15,7 @@ export class Engine {
   }
   settings() {
     return { ytdlp: 'yt-dlp', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', musicFolder: '', cookiesFile: '', autoAnalyse: true,
-      quality:'strict-mp3-320', allowLowerOfficial:true, ...(this.store.get('settings', 'main') || {}) };
+      quality:'strict-mp3-320', allowLowerOfficial:true, spotisaverMode:'off', ...(this.store.get('settings', 'main') || {}) };
   }
   saveSettings(value) {
     if (this.active) throw new Error('Wait for the current sync or cancel it before changing settings.');
@@ -23,6 +23,7 @@ export class Engine {
     for (const key of ['ytdlp', 'ffmpeg', 'ffprobe', 'musicFolder', 'cookiesFile']) if (typeof value[key] === 'string') current[key] = value[key].trim();
     if (typeof value.autoAnalyse === 'boolean') current.autoAnalyse = value.autoAnalyse;
     if (typeof value.allowLowerOfficial === 'boolean') current.allowLowerOfficial = value.allowLowerOfficial;
+    if(value.spotisaverMode!==undefined){if(!['off','fallback','first'].includes(value.spotisaverMode))throw Error('Choose a supported Spotisaver source order.');current.spotisaverMode=value.spotisaverMode;}
     if(value.quality!==undefined){if(!['strict-mp3-320','club-aac-256'].includes(value.quality))throw Error('Choose a supported audio standard.');current.quality=value.quality;}
     if (current.musicFolder && !isAbsolute(current.musicFolder)) throw new Error('Music folder must be an absolute path');
     this.store.put('settings', 'main', current); this.changed(); return current;
@@ -204,7 +205,7 @@ export class Engine {
     }
     if (fallback && job.acquisition === 'soulseek' && !explicitSource) preferSoulseek = true;
     if (job.status === 'review' || job.status === 'cancelled') {
-      if (fallback && !explicitSource && (job.status !== 'cancelled' || retrySoulseek) && (retrySoulseek || job.acquisition !== 'soulseek')) preferSoulseek = true;
+      if (fallback && !explicitSource && (job.status !== 'cancelled' || retrySoulseek) && (retrySoulseek || !['soulseek','spotisaver'].includes(job.acquisition))) preferSoulseek = true;
       else { this.store.put('rows', row.id, { ...row, status: 'review', reviewKind:'source', reason: job.message }); return false; }
       if (retrySoulseek && job.acquisition === 'soulseek' && !job.file) job = {...job,sourcePath:null,sourceReport:null};
     }
@@ -229,20 +230,29 @@ export class Engine {
           const result=await this.downloads.acquire(row.track,job,fields=>{const {attempts,...rest}=fields;update(rest);},signal);
           return {...result,attempts:[...webAttempts,...peerAttempts].slice(-30)};
         } catch(error) {
+          if(!signal.aborted && !['SOULSEEK_AUTH','SOULSEEK_SETUP'].includes(error.code))peerUpdate({attempts:[...peerAttempts,{source:'Soulseek',status:/Quality check/.test(error.message)?'quality':error.code==='QUALITY_REVIEW'?'exhausted':'unavailable',message:'Soulseek did not supply a verified file; see earlier source attempts'}]});
           if(error.code==='QUALITY_REVIEW' && webAttempts.some(a=>a.status==='quality'))error.message='Recordings were found on the web but did not meet your audio standard; Soulseek also found no verified alternative. See source attempts.';
           throw error;
         }
       };
       if (!job.file) {
-        if (preferSoulseek && fallback && !explicitSource) update(await acquireFallback());
-        else {
-          try { if(!explicitSource)update({acquisition:'web'});update(await this.downloads.acquire(row.track,job,update,signal)); }
-          catch (error) {
-            if (!fallback || explicitSource || signal.aborted) throw error;
-            // Do not reuse a rejected web source as if it came from Soulseek.
-            update({sourcePath:null,sourceReport:null});
-            update(await acquireFallback());
+        try {
+          if (preferSoulseek && fallback && !explicitSource) update(await acquireFallback());
+          else {
+            try { if(!explicitSource)update({acquisition:'web'});update(await this.downloads.acquire(row.track,job,update,signal)); }
+            catch (error) {
+              if (!fallback || explicitSource || signal.aborted || error.code==='LOWER_CONFIRM') throw error;
+              // Do not reuse a rejected web source as if it came from Soulseek.
+              update({sourcePath:null,sourceReport:null});
+              update(await acquireFallback());
+            }
           }
+        } catch(error) {
+          if(this.settings().spotisaverMode!=='fallback' || row.track.provider!=='spotify' || explicitSource || job.qualityApproval || job.originalOnly || retrySoulseek || signal.aborted || ['SOULSEEK_AUTH','SOULSEEK_SETUP','LOWER_CONFIRM'].includes(error.code))throw error;
+          // This stage follows every configured ordinary source, including Soulseek.
+          // A rejected web/peer file must never be reused under Spotisaver's name.
+          update({acquisition:'spotisaver',sourcePath:null,sourceReport:null,sourceUrl:null,sourceFormat:null});
+          update(await this.downloads.acquire(row.track,job,update,signal,{spotisaverOnly:true}));
         }
       }
       else await this.downloads.verify(job.file, row.track, signal, true,{allowLower:Boolean(job.qualityApproval || (job.quality?.officialOriginal && this.settings().allowLowerOfficial))});
@@ -260,7 +270,7 @@ export class Engine {
         await this.bridge.call('analyse', { libraryId: link.libraryId, id: local.id }); update({ analysed: true });
       }
       update({ status: 'ready', message: job.artwork?.status==='unavailable'?'Ready in rbxport · cover unavailable':'Ready in rbxport', progress: '' });
-      const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard),officialOriginal:Boolean(job.quality.officialOriginal)}:undefined;
+      const audioQuality=job.quality?{codec:job.quality.sourceCodec || job.quality.codec,bitrate:job.quality.sourceBitrate ?? job.quality.bitrate,belowStandard:Boolean(job.quality.belowStandard),officialOriginal:Boolean(job.quality.officialOriginal),...(job.quality.sourceService==='spotisaver'?{sourceService:'spotisaver',upstreamQuality:'unverified'}:{})}:undefined;
       this.store.put('rows', row.id, { ...row, localId: local.id, status: 'ready',audioQuality, reason: audioQuality?.belowStandard?`Ready · ${audioQuality.codec.toUpperCase()} ${Math.round(audioQuality.bitrate || 0)} kbps · quality exception`:'Downloaded, validated and imported' }); return true;
     } catch (error) {
       const status = signal.aborted ? 'cancelled' : ['QUALITY_REVIEW','LOWER_CONFIRM'].includes(error.code) || /Quality check/.test(error.message) ? 'review' : 'failed';

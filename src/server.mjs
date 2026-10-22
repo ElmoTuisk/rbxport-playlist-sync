@@ -12,21 +12,27 @@ import { Spotify, Vault, Providers } from './providers.mjs';
 import { firstRunSettings } from './defaults.mjs';
 import { oauthPage } from './oauth-page.mjs';
 import { Soulseek } from './soulseek.mjs';
+import { SpotisaverBrowser } from './spotisaver-browser.mjs';
+import { Installation } from './installation.mjs';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
-export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null, bridgeClient = null, automaticSync = true } = {}) {
+export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null, bridgeClient = null, spotisaverBrowser = null, automaticSync = true, installationClient = null } = {}) {
   await mkdir(dataDir, { recursive: true });
   const token = randomBytes(32).toString('hex');
   const store = new Store(join(dataDir, demo ? 'demo.sqlite' : 'sync.sqlite'));
   if (!store.get('settings', 'main')) store.put('settings', 'main', firstRunSettings(dataDir));
   let revision = 1; const listeners = new Set();
   let runningSync = null, hostTimer = null, hostTask = null, shuttingDown = false, selected = null, selectionRevision = 0, hostInfo = null, closeTask = null;
-  let connectionError = '';
+  let connectionError = '', uninstalling = false;
+  const installation = installationClient || new Installation();
+  const installationStatus = demo ? {canUninstall:false} : await installation.status();
   const changed = () => { revision++; for (const wake of [...listeners]) wake(); clearTimeout(hostTimer); if (!demo && !shuttingDown) hostTimer = setTimeout(() => { void syncHost().catch(() => {}); }, 150); };
   const bridge = bridgeClient || new Bridge(changed);
   bridge.libraryReady = false;
   let engine;
   const downloads = new Downloads(() => engine.settings());
+  downloads.spotisaver.browser=spotisaverBrowser || new SpotisaverBrowser(dataDir,{onChange:changed});
+  downloads.spotisaver.onChange=changed;
   const soulseek = new Soulseek(dataDir,new Vault(dataDir,'soulseek'),downloads);
   await soulseek.initialize(); downloads.soulseek = soulseek;
   const spotify = spotifyClient || new Spotify(new Vault(dataDir), `http://127.0.0.1:${port}/oauth/spotify`, new Vault(dataDir, 'spotify-auth'));
@@ -39,8 +45,8 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   const state = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active,
     links: store.all('links'), jobs: store.all('jobs').slice(-150).reverse(), runs: store.all('runs').slice(-50).reverse(), settings: engine.settings(),
     counts: store.all('rows').filter(r => r.present).reduce((out, row) => { out[row.status] = (out[row.status] || 0) + 1; return out; }, {}) });
-  const panelModel = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active, selected, selectionRevision,
-    expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(),
+  const panelModel = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active, selected, selectionRevision, installation:installationStatus,
+    expiresAt: Date.now() + 60000, settings: engine.settings(), spotify: spotify.publicStatus(), soulseek:soulseek.publicStatus(), spotisaver:downloads.spotisaver.publicStatus(),
     links: store.all('links').filter(l => !engine.pendingUnlinks.has(l.id) && (demo || !hostInfo || l.libraryId === hostInfo.libraryId)).map(l => ({ ...l, name: hostInfo?.playlists.find(p => p.id === l.playlistId)?.name || l.name })),
     rows: Object.fromEntries(selected ? [[selected, engine.rows(selected)]] : []),
     jobs: store.all('jobs').filter(j => j.linkId === engine.active || j.linkId === selected), playlists: hostInfo?.playlists || [] });
@@ -83,10 +89,23 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
     void runningSync.catch(() => {}).finally(() => { runningSync = null; });
   }
   async function action(name, args = {}) {
+    if(shuttingDown||uninstalling)throw Error('Playlist Sync is stopping.');
     if (demo && !['select', 'options'].includes(name)) throw Error('Example data only');
     if (!args || typeof args !== 'object') throw Error('Invalid action');
     if (['options','sync','recheck','fallback','retry-missing','automatic','link','resolve','match-plan','accept-matches','quality-plan','accept-quality'].includes(name) && !demo) requireLibrary();
     switch (name) {
+      case 'uninstall': {
+        if(args.confirmed!==true)throw Error('Confirm uninstalling Playlist Sync first.');
+        if(engine.active)throw Error('Wait for the current sync to finish or cancel it before uninstalling.');
+        const automaticBefore=engine.automaticEnabled;
+        uninstalling=true;engine.automaticEnabled=false;clearTimeout(engine.timer);engine.timer=null;
+        let result;
+        try { result=await installation.uninstall(); }
+        catch(error){uninstalling=false;engine.automaticEnabled=automaticBefore;engine.schedule();throw error;}
+        shuttingDown=true;engine.automaticEnabled=false;engine.close();
+        setTimeout(()=>{void close();},250).unref();
+        return result;
+      }
       case 'select': if (!store.get('links', args.id)) throw Error('Unknown playlist link'); selected = args.id; selectionRevision++; changed(); break;
       case 'options': hostInfo = demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'); changed(); break;
       case 'official': {const row=store.get('rows',args.id);if(row?.track.provider!=='soundcloud')throw Error('No SoundCloud source for this song');return {externalUrl:row.track.url};}
@@ -115,6 +134,30 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
         runningSync=engine.downloadRows(rowIds);void runningSync.catch(()=>{}).finally(()=>{runningSync=null;});return result;
       }
       case 'settings': engine.saveSettings(args); break;
+      case 'spotisaver-verify': {
+        if(engine.active)throw Error('Wait for the current sync or cancel it before verifying Spotisaver.');
+        const row=args.id?store.get('rows',args.id):store.all('rows').find(r=>r.present&&r.track.provider==='spotify'&&['review','failed','missing'].includes(r.status)) || store.all('rows').find(r=>r.present&&r.track.provider==='spotify');
+        if(!row?.present||row.track.provider!=='spotify')throw Error('Choose a song from a linked Spotify playlist first.');
+        return downloads.spotisaver.beginVerification(row.track);
+      }
+      case 'spotisaver-check':
+        if(engine.active)throw Error('Wait for the current sync or cancel it before checking verification.');
+        await downloads.spotisaver.checkVerification();return downloads.spotisaver.publicStatus();
+      case 'spotisaver-disconnect':
+        if(engine.active)throw Error('Wait for the current sync or cancel it before closing the Spotisaver connection.');
+        await downloads.spotisaver.closeBrowser();return downloads.spotisaver.publicStatus();
+      case 'spotisaver-retry': {
+        requireLibrary();
+        if(engine.settings().spotisaverMode==='off')throw Error('Enable Spotisaver in Advanced settings and save first.');
+        if(!downloads.spotisaver.publicStatus().connected)throw Error('Verify Spotisaver before retrying.');
+        const row=store.get('rows',args.id),link=row&&store.get('links',row.linkId);
+        const job=store.all('jobs').find(j=>j.rowId===args.id || (link&&j.libraryId===link.libraryId&&j.key===row.track.key));
+        if(!row?.present||row.track.provider!=='spotify'||['ready','matched','ignored'].includes(row.status))throw Error('Choose an unresolved Spotify song.');
+        if(job?.overrideUrl||job?.sourcePath||job?.qualityApproval||job?.originalOnly)throw Error('This song has an explicit source or quality choice. Use its existing retry action.');
+        await engine.resolveRow(args.id,{action:'retry'});
+        runningSync=engine.downloadRow(args.id);void runningSync.catch(()=>{}).finally(()=>{runningSync=null;});
+        return {ok:true};
+      }
       case 'spotify': { const url = await spotify.authorize(args.clientId); changed(); return { url }; }
       case 'soulseek': if (engine.active) throw Error('Wait for the current sync before changing Soulseek settings.'); await soulseek.configure(args); changed(); return soulseek.publicStatus();
       default: throw Error('Unsupported action');
@@ -165,6 +208,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
         body = raw ? JSON.parse(raw) : {};
       }
       if (req.method === 'GET' && url.pathname === '/api/state') return json(state());
+      if ((uninstalling||shuttingDown) && ['POST','PATCH'].includes(req.method)) return json({error:'Playlist Sync is stopping.'},409);
       if (req.method === 'GET' && url.pathname === '/api/panel') return json(panelModel());
       if (req.method === 'POST' && url.pathname === '/api/action') return json(await action(body.action, body.args));
       if (req.method === 'GET' && url.pathname === '/api/events') {
@@ -212,6 +256,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   function close() {
     closeTask ??= (async () => {
       shuttingDown = true; clearTimeout(hostTimer); clearInterval(heartbeat); engine.close();
+      await downloads.spotisaver.closeBrowser();
       await hostTask?.catch(() => {});
       if (bridge.connected) await bridge.removeHost().catch(() => {});
       bridge.close(); for (const wake of [...listeners]) wake(); server.closeAllConnections();

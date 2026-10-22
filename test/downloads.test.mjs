@@ -217,3 +217,79 @@ test('discovery reaches later results and tries distinct alternate names without
  for await(const c of f.d.candidates(mix))assert.fail('No fixture results');
  assert.equal(new Set(queries).size,queries.length);assert(queries[0].includes('Alice Remix'));assert(queries.some(u=>u==='scsearch5:Fixture Artist Fixture Recording'));
 });
+
+
+test('Spotisaver last resort is deferred to the engine after ordinary web discovery',async t=>{
+ for(const mode of ['off','first','fallback'])for(const webWorks of [false,true]){
+  const f=await fixture(t),order=[];
+  f.d.settings=()=>({musicFolder:f.dir,ytdlp:'fixture-ytdlp',ffmpeg:'fixture-ffmpeg',spotisaverMode:mode});
+  f.d.candidates=async function*(){order.push('web');if(webWorks)yield candidate('good');};
+  f.d.spotisaver.acquire=async()=>{order.push('spotisaver');const path=join(f.dir,'service.mp3');await writeFile(path,'320');return{sourcePath:path,sourceUrl:'https://spotisaver.online/en/track/fixture',sourceReport:{ok:true,codec:'mp3',bitrate:320,sourceService:'spotisaver',upstreamQuality:'unverified'}};};
+  let result;
+  if(mode!=='first'&&!webWorks){
+   let job={id:'order'};
+   await assert.rejects(f.d.acquire(track,job,fields=>{job={...job,...fields};},new AbortController().signal),{code:'QUALITY_REVIEW'});
+   assert.deepEqual(order,['web'],'Normal discovery must leave room for Soulseek before Spotisaver');
+   if(mode==='off')continue;
+   const earlier=[{source:'Web',status:'empty',message:'No source'},{source:'Soulseek',status:'empty',message:'No peer source'}];
+   result=await f.d.acquire(track,{...job,attempts:earlier},()=>{},new AbortController().signal,{spotisaverOnly:true});
+   assert.deepEqual(result.attempts.slice(0,2),earlier,'The final stage retains earlier source evidence');
+  }else result=await f.d.acquire(track,{id:'order'},()=>{},new AbortController().signal);
+  assert.deepEqual(order,mode==='first'?['spotisaver']:mode==='off'||webWorks?['web']:['web','spotisaver']);
+  if(order.at(-1)==='spotisaver'){
+   assert.equal(result.quality.upstreamQuality,'unverified');assert.equal(result.quality.bitrate,320);
+   const resumed=await f.d.acquire(track,{id:'resume',sourcePath:join(f.dir,'service.mp3'),sourceUrl:result.sourceUrl,sourceReport:result.sourceReport},()=>{},new AbortController().signal);
+   assert.equal(resumed.quality.upstreamQuality,'unverified');
+  }
+ }
+ const f=await fixture(t);f.d.settings=()=>({musicFolder:f.dir,ytdlp:'fixture-ytdlp',ffmpeg:'fixture-ffmpeg',spotisaverMode:'first'});
+ f.d.spotisaver.acquire=async()=>assert.fail('Explicit source must not call Spotisaver');
+ f.d.metadata=async()=>candidate('good');await f.d.acquire(track,{id:'explicit',overrideUrl:candidate('good').webpage_url},()=>{},new AbortController().signal);
+});
+
+test('Spotisaver final stage cannot override a source choice, disabled setting or non-Spotify track',async t=>{
+ const f=await fixture(t);
+ f.d.spotisaver.acquire=async()=>assert.fail('A forbidden last resort must not contact Spotisaver');
+ f.d.candidates=async function*(){assert.fail('The final stage must not repeat web discovery');};
+ for(const choice of [{overrideUrl:candidate('good').webpage_url},{sourcePath:f.dir},{acquisition:'manual'},{qualityApproval:{}},{originalOnly:true},{mode:'off'},{mode:'first'},{provider:'soundcloud'}]){
+  const {mode='fallback',provider='spotify',...job}=choice;
+  f.d.settings=()=>({musicFolder:f.dir,spotisaverMode:mode});
+  await assert.rejects(f.d.acquire({...track,provider},{id:'guard',...job},()=>{},new AbortController().signal,{spotisaverOnly:true}),{code:'QUALITY_REVIEW'});
+ }
+});
+
+test('an invalid last-resort file remains in review with earlier attempts and no further discovery',async t=>{
+ const f=await fixture(t);f.d.settings=()=>({musicFolder:f.dir,spotisaverMode:'fallback'});
+ const earlier=[{source:'Soulseek',status:'empty',message:'No peer source'}],updates=[];
+ f.d.candidates=async function*(){assert.fail('Last resort must not loop back to web discovery');};
+ f.d.spotisaver.acquire=async()=>({sourcePath:'invalid',sourceReport:{ok:true,codec:'mp3',bitrate:128}});
+ await assert.rejects(f.d.acquire(track,{id:'invalid',attempts:earlier},fields=>updates.push(fields),new AbortController().signal,{spotisaverOnly:true}),error=>{
+  assert.equal(error.code,'QUALITY_REVIEW');assert.deepEqual(error.attempts[0],earlier[0]);
+  assert.equal(error.attempts.at(-1).source,'Spotisaver');assert.equal(error.attempts.at(-1).status,'unavailable');return true;
+ });
+ assert(!updates.some(fields=>fields.sourcePath));
+});
+
+test('blocked or falsely advertised Spotisaver falls back without claiming its file verified',async t=>{
+ for(const invalid of [false,true]){
+  const f=await fixture(t),updates=[];
+  f.d.settings=()=>({musicFolder:f.dir,ytdlp:'fixture-ytdlp',ffmpeg:'fixture-ffmpeg',spotisaverMode:'first'});
+  f.d.candidates=async function*(){yield candidate('good');};
+  f.d.spotisaver.acquire=async()=>{if(invalid)return{sourcePath:'invalid',sourceReport:{ok:true,codec:'mp3',bitrate:128}};throw Object.assign(Error('Blocked connection'),{code:'SPOTISAVER_UNAVAILABLE'});};
+  const result=await f.d.acquire(track,{id:'fallback'},v=>updates.push(v),new AbortController().signal);
+  assert.equal(result.sourceUrl,candidate('good').webpage_url);assert.equal(result.quality.upstreamQuality,undefined);
+  assert(!result.attempts.some(a=>a.source==='Spotisaver'&&a.status==='verified'));
+  assert(!updates.some(v=>v.sourcePath==='invalid'));
+ }
+});
+
+test('Spotisaver cancellation stops all fallback work and non-Spotify tracks never use it',async t=>{
+ const f=await fixture(t),abort=new AbortController();
+ f.d.settings=()=>({musicFolder:f.dir,ytdlp:'fixture-ytdlp',ffmpeg:'fixture-ffmpeg',spotisaverMode:'first'});
+ f.d.spotisaver.acquire=async()=>{abort.abort();throw Error('Cancelled');};
+ f.d.candidates=async function*(){assert.fail('Must not search after cancellation');};
+ await assert.rejects(f.d.acquire(track,{id:'cancel'},()=>{},abort.signal),{name:'AbortError'});
+ f.d.spotisaver.acquire=async()=>assert.fail('Non-Spotify source must not call Spotisaver');
+ f.d.candidates=async function*(){yield candidate('good');};
+ const result=await f.d.acquire({...track,provider:'soundcloud'},{id:'other'},()=>{},new AbortController().signal);assert.equal(result.quality.bitrate,320);
+});

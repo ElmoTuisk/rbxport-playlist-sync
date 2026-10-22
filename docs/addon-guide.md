@@ -4,7 +4,7 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.10.5, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.11.0, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 New downloads include album artwork automatically: exact Spotify album images or SoundCloud track artwork, with an existing attached cover as fallback. Missing/broken artwork does not discard verified audio. MP3/AAC audio stays packet-preserved; no existing collection files are rewritten. Provider image downloads are limited to known HTTPS CDNs, 5 MiB per image and 15 seconds, with at most 8 MiB/32 entries cached. Images are normalized to a compatible JPEG attachment of at most 1200 pixels per side. See the README for the full behavior.
 
@@ -13,12 +13,12 @@ Source discovery checks ten initial results per SoundCloud/YouTube query, retain
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.10.5-windows-setup.zip` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest) and extract all files.
-3. Double-click **Install-Playlist-Sync.cmd**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
-4. Close rbxport normally before the first launch, then use the **Playlist Sync** Desktop or Start Menu shortcut. It starts rbxport with the add-on connection enabled.
+2. Download `playlist-sync-0.11.0-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+3. Stop Playlist Sync if running, open the EXE and click **Install / Update**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
+4. With the default automatic-attachment option, open compatible rbxport normally. Close and reopen it once if needed. Otherwise use the **Playlist Sync** shortcut.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
 
-Start rbxport through this shortcut when you want the add-on loaded. An already running rbxport instance without its local automation connection must be closed normally first. The add-on does not install a Windows login task.
+Setup finds registered installations and preserves their data. Choose an existing folder for an unregistered portable copy. Automatic attachment registers a hidden service at Windows sign-in; it does not open a host window.
 
 The panel closes with ×, Escape or a click outside it. Background sync continues while the service and rbxport are running. Use **Start Menu → Playlist Sync → Stop Playlist Sync** to stop it completely. Restart rbxport normally to turn off its local automation port.
 
@@ -122,9 +122,9 @@ node src/server.mjs --demo --data-dir .local-data/demo
 
 Demo data is fictional and read-only. Open the pairing URL from that data folder's `launch-url.txt`. FFmpeg/FFprobe are needed for the real-audio test; it skips explicitly if absent. Override their paths with `FFMPEG` and `FFPROBE`.
 
-Portable source runs use `.local-data`. `Start-Playlist-Sync.ps1 -NodePath ... -RbxportPath ...` supports custom installations. `-NoWindow` starts the service quietly. `-Detached` opens a small 430 × 500 fallback window instead of the native popover; Edge or Chrome is needed only for that optional mode.
+Portable source runs use `.local-data`. `Start-Playlist-Sync.ps1 -NodePath ... -RbxportPath ...` supports custom installations. `-NoWindow` starts the service quietly. `-Detached` opens a small 430 × 500 fallback window instead of the native popover; Edge or Chrome is also used for Spotisaver verification.
 
-This folder can be its own GitHub repository. `Package-Addon.ps1` makes an allowlisted Windows setup ZIP, excluding private state, downloaded tools, installed runtimes and caches. Nothing is published automatically. See [architecture](architecture.md), [validation](validation.md) and [release checklist](releasing.md).
+`Build-Installer.ps1` builds the single-file EXE; `Package-Addon.ps1` makes the accompanying source ZIP. Both exclude private state, downloaded tools, installed runtimes and caches. Every matching version tag publishes these assets only after Windows and Linux CI pass. See [architecture](architecture.md), [validation](validation.md) and [release checklist](releasing.md).
 
 ## License
 

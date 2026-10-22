@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0 — 2026-10-23
+
+Download **playlist-sync-0.11.0-windows-setup.exe** to install or update. Stop Playlist Sync first. Source code and SHA-256 checksums remain available alongside every release; the EXE is unsigned.
+
+- Add a single Windows setup executable with an embedded, checksum-checked source payload, automatic extraction and verified dependency installation. Offer automatic attachment to regular rbxport launches in the setup window; retain the source ZIP for development.
+- Add managed installation receipts, Windows Installed apps registration and a confirmed **Uninstall Playlist Sync** action in the existing popup settings. Refuse uninstall during sync, shut down only the add-on, preserve companion startup registrations, and remove only unchanged owned program files. Music, library entries, saved settings and unrecognized/edited files are retained.
+- Find existing installations using saved registration, shortcuts and the standard install folder. Update the same folder and preserve the saved-data path, including older setup receipts and portable `.local-data`. Offer a folder picker for unregistered portable copies; refuse ambiguous copies, unrelated folders, data-path changes, source checkouts and downgrades. Building the executable does not install it.
+
+- Add optional automatic attachment for regular rbxport launches: independent hidden services at Windows sign-in, a per-user local connection setting, companion-aware disable/restore and a background launcher that never opens the host. Verify both sidebar buttons return after a normal Explorer launch of rbxport 1.9.0. A full Windows sign-in remains untested.
+
+- Add a cooperative main-window write lease so this source build and the independent Playlist Wizard add-on do not overlap native mutations. Keep it held until the native promise settles. Library identity and existing Sync ordering/audio checks remain enforced. Playlist Wizard has its own source project, documentation and test suite; it is not part of the Sync setup ZIP.
+
+- Add an opt-in Spotisaver connection for Spotify tracks, selectable first or as a last resort after web discovery and enabled Soulseek. Preserve earlier source attempts, explicit choices, cancellation and Soulseek account/setup stops. Hold exhausted last-resort jobs until a retry. Use an isolated anonymous session and the same-origin transfer relay, with bounded requests, cancellation, rate-limit backoff and fallback on unavailable/changed service responses.
+- Require matching metadata, file tags and duration, complete decoding, stereo, sample rate and actual MP3 audio at exactly 320 kbps. Copy its compressed audio unchanged; retain `original quality unverified` in file tags, saved reports and the compact UI. Do not infer upstream quality from the output bitrate.
+- Add Verify Spotisaver in Advanced and Spotify song reviews. Open a separate Edge/Chrome profile, let the user complete any site verification, retain cookies inside that browser, and stream subsequent requests/audio through the same session. Keep the compact status, explicit retry, library/source-choice guards, bounded transfers and normal audio validation. No extension or cookie export is needed.
+- Keep Spotisaver disabled by default. Direct HTTP requests were challenged; the dedicated browser subsequently downloaded all three selected live test recordings as verified 320 kbps MP3 into isolated folders. No manual challenge was presented in the successful runs. This small sample does not establish an overall reliability rate or original recording quality.
+
 ## 0.10.5 — 2026-10-20
 
 - Stream fully extracted candidate metadata as it arrives instead of waiting for every search result. Overlap the primary SoundCloud/YouTube metadata searches while preserving original-download priority, provider order, result limits, lazy alternate names and all recording/audio checks.

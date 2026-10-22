@@ -20,6 +20,55 @@ function fixture(send=async()=>({ok:true})) {
   return {root, document, initial, controller, click,events};
 }
 
+test('managed uninstall requires inline confirmation, is cancellable and unavailable during sync',async()=>{
+ const calls=[],f=fixture(async(action,args)=>{calls.push({action,args});return {started:true};});
+ await f.click('settings');assert.doesNotMatch(f.root.innerHTML,/Uninstall Playlist Sync/);
+ f.controller.update({...f.initial,installation:{canUninstall:true}});assert.match(f.root.innerHTML,/Uninstall Playlist Sync/);
+ await f.click('uninstall-review');assert.match(f.root.innerHTML,/data-uninstall-review/);assert.match(f.root.innerHTML,/music, playlists, saved settings and Playlist Wizard are kept/);assert.equal(calls.length,0);
+ await f.click('uninstall-cancel');assert.doesNotMatch(f.root.innerHTML,/data-uninstall-review/);assert.equal(calls.length,0);
+ await f.click('uninstall-review');f.controller.update({...f.initial,installation:{canUninstall:true},active:'a'});
+ await f.click('uninstall-confirm');assert.equal(calls.length,0);assert.match(f.root.innerHTML,/data-action="uninstall-confirm"[^>]*disabled/);
+ f.controller.update({...f.initial,installation:{canUninstall:true}});await f.click('uninstall-confirm');assert.deepEqual(calls.map(c=>c.action),['uninstall']);assert.equal(calls[0].args.confirmed,true);
+});
+
+test('Spotisaver verification stays in Advanced and offers guarded retry only for ordinary Spotify jobs',async()=>{
+ const calls=[],f=fixture(async(action,args)=>{calls.push({action,args});return {ok:true};});
+ let model={...f.initial,settings:{spotisaverMode:'first'},spotisaver:{state:'needs-verification',message:'Complete <verification>',connected:false}};
+ f.controller.update(model);await f.click('settings');f.events.toggle({target:{dataset:{advanced:''},open:true}});
+ await f.click('spotisaver-verify');assert.equal(calls.at(-1).action,'spotisaver-verify');
+ assert.match(f.root.innerHTML,/data-advanced open/);assert.match(f.root.innerHTML,/Complete &lt;verification&gt;/);assert.match(f.root.innerHTML,/Check verification/);
+ await f.click('settings');
+ const row={...f.initial.rows.a[0],track:{...f.initial.rows.a[0].track,provider:'spotify'}};
+ model={...model,selected:'a',selectionRevision:2,rows:{a:[row]},spotisaver:{state:'connected',connected:true,message:'Browser connected'}};
+ f.controller.update(model);await f.click('review',row.id);assert.match(f.root.innerHTML,/Retry download/);
+ await f.click('spotisaver-retry',row.id);assert.equal(calls.at(-1).action,'spotisaver-retry');assert.equal(calls.at(-1).args.id,row.id);
+ f.controller.update({...model,connected:false});assert.match(f.root.innerHTML,/data-action="spotisaver-retry"[^>]*disabled/);
+ for(const job of [{overrideUrl:'https://example.test/file'},{qualityApproval:{codec:'aac'}},{sourcePath:'fixture'},{originalOnly:true}]){
+   f.controller.update({...model,jobs:[{rowId:row.id,...job}]});assert.doesNotMatch(f.root.innerHTML,/Retry download/);
+ }
+});
+
+test('Spotisaver settings and verified results disclose original quality uncertainty',async()=>{
+ const f=fixture();f.controller.update({...f.initial,settings:{spotisaverMode:'first'}});
+ await f.click('settings');assert.match(f.root.innerHTML,/name="spotisaverMode"/);assert.match(f.root.innerHTML,/value="first" selected/);
+ assert.match(f.root.innerHTML,/Only files verified as MP3 at 320 kbps pass/);assert.match(f.root.innerHTML,/Enabling sends Spotify track details/);
+ f.controller.update({...f.initial,settings:{spotisaverMode:'fallback'}});
+ assert.match(f.root.innerHTML,/value="fallback" selected>Last resort, after Soulseek/);
+ assert.match(f.root.innerHTML,/after web sources and enabled Soulseek/);
+ await f.click('settings');
+ const quality={ok:true,codec:'mp3',bitrate:320,sourceService:'spotisaver',upstreamQuality:'unverified'};
+ const row={...f.initial.rows.a[0],status:'missing'};
+ f.controller.update({...f.initial,selected:'a',selectionRevision:2,rows:{a:[row]},jobs:[{rowId:row.id,status:'validating',sourcePath:'fixture',sourceReport:quality}]});
+ assert.match(f.root.innerHTML,/MP3 320 kbps encoding verified · original quality unverified/);
+ for(const jobs of [[{rowId:row.id,status:'ready',quality}],[]]){
+  f.controller.update({...f.initial,selected:'a',selectionRevision:2,rows:{a:[{...row,status:'ready',audioQuality:quality}]},jobs});
+  f.events.toggle({target:{dataset:{allTracks:'a'},open:true}});
+  assert.match(f.root.innerHTML,/Ready · MP3 320 kbps · encoding verified · original quality unverified/);
+ }
+ f.controller.update({...f.initial,selected:'a',selectionRevision:2,rows:{a:[{...row,status:'matched',audioQuality:quality}]},jobs:[]});
+ assert.match(f.root.innerHTML,/In collection · original quality unverified/);
+});
+
 test('an unavailable library shows its escaped diagnostic, blocks syncing and recovers while an input has focus', async () => {
   const calls = [], f = fixture(async (action) => { calls.push(action); return { ok: true }; });
   const offline = { ...f.initial, connected: false, selected: 'a', selectionRevision: 2, connectionError: 'Library API unavailable <fixture>' };

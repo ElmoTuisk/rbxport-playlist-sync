@@ -1,0 +1,110 @@
+param([string]$NodePath)
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path $PSScriptRoot -Parent
+. (Join-Path $repo 'scripts\Installation.ps1')
+function Assert-Install($Condition, $Message) { if (-not $Condition) { throw $Message } }
+$fixture = Join-Path ([IO.Path]::GetTempPath()) ('playlist-sync-install-' + [Guid]::NewGuid().ToString('N'))
+$source = Join-Path $fixture 'source'
+$target = Join-Path $fixture 'installed'
+$data = Join-Path $fixture 'saved'
+$cache = Join-Path $fixture 'cache'
+try {
+    foreach ($dir in @($source,$target,$data,$cache)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    # A synthetic setup source and cached, hashed tools; no download, registry, shortcut, host or service access.
+    foreach ($dir in @('src','public','scripts','docs')) { New-Item -ItemType Directory -Path (Join-Path $source $dir) | Out-Null; Set-Content -LiteralPath (Join-Path $source "$dir\fixture.txt") 'program fixture' }
+    Set-Content -LiteralPath (Join-Path $source 'src\server.mjs') '// synthetic service; never executed'
+    foreach ($name in @('README.md','PROJECT_OVERVIEW.md','AGENTS.md','CHANGELOG.md','LICENSE','manifest.json','Start-Playlist-Sync.ps1','Stop-Playlist-Sync.ps1','Launch-Playlist-Sync.cmd','Configure-Rbxport-Startup.ps1','Uninstall-Playlist-Sync.ps1')) { Set-Content -LiteralPath (Join-Path $source $name) 'fixture' }
+    Copy-Item -LiteralPath (Join-Path $repo 'Install-Playlist-Sync.ps1') -Destination $source
+    Copy-Item -LiteralPath (Join-Path $repo 'scripts\Installation.ps1') -Destination (Join-Path $source 'scripts')
+    Set-Content -LiteralPath (Join-Path $source 'scripts\Desktop.ps1') "function Find-PlaylistSyncRbxport { return 'fixture-rbxport.exe' }`nfunction Test-PlaylistSyncServiceListening { return `$false }"
+    @{name='rbxport-playlist-sync-addon';version='0.10.5'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source 'package.json')
+    Copy-Item -LiteralPath $NodePath -Destination (Join-Path $cache 'node.exe')
+    Set-Content -LiteralPath (Join-Path $cache 'yt-dlp.exe') 'fake downloader; never executed'
+    $bin = Join-Path $fixture 'ffmpeg\bin'; New-Item -ItemType Directory -Path $bin -Force | Out-Null
+    foreach ($name in @('ffmpeg.exe','ffprobe.exe')) { Set-Content -LiteralPath (Join-Path $bin $name) 'fake audio tool; never executed' }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem,System.IO.Compression
+    $zip=[IO.Compression.ZipFile]::Open((Join-Path $cache 'ffmpeg-essentials.zip'),[IO.Compression.ZipArchiveMode]::Create)
+    try { foreach($name in @('ffmpeg.exe','ffprobe.exe')) { $null=[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,(Join-Path $bin $name),('ffmpeg/bin/'+$name)) } } finally { $zip.Dispose() }
+    function Hash($Path) { return Get-PlaylistSyncFileHash $Path }
+    @{node=@{url='https://nodejs.org/fixture';sha256=(Hash (Join-Path $cache 'node.exe'))};ytdlp=@{url='https://github.com/fixture';sha256=(Hash (Join-Path $cache 'yt-dlp.exe'))};ffmpeg=@{url='https://www.gyan.dev/fixture';sha256=(Hash (Join-Path $cache 'ffmpeg-essentials.zip'));ffmpegSha256=(Hash (Join-Path $bin 'ffmpeg.exe'));ffprobeSha256=(Hash (Join-Path $bin 'ffprobe.exe'))}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $source 'dependencies.json')
+    Set-Content -LiteralPath (Join-Path $data 'sync.sqlite') 'saved playlist settings'
+    $desktopFixture=Join-Path $source 'scripts\Desktop.ps1'
+    $desktopSaved=Get-Content -LiteralPath $desktopFixture -Raw
+    Set-Content -LiteralPath $desktopFixture -Value $desktopSaved.Replace('return $false','return $true')
+    $blockedTarget=Join-Path $fixture 'must-not-exist'
+    $blocked=$false;try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $blockedTarget -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry } catch { $blocked=$_.Exception.Message.Contains('Stop the running Playlist Sync') }
+    Assert-Install ($blocked -and -not (Test-Path -LiteralPath $blockedTarget)) 'A running copy must be refused before changing files'
+    Set-Content -LiteralPath $desktopFixture -Value $desktopSaved
+    & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
+    $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
+    Assert-Install ($record.product -eq 'rbxport-playlist-sync' -and $record.files.Count -gt 10) 'Installation receipt missing'
+    # Upgrade without an explicit data path must preserve the first installation's custom data path.
+    & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
+    $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
+    Assert-Install ($record.dataDirectory -eq $data) 'Upgrade moved saved data'
+    # Discover both historical receipts and registered portable copies without touching live registration.
+    $legacy = Join-Path $fixture 'portable'
+    New-Item -ItemType Directory -Path (Join-Path $legacy 'src'),(Join-Path $legacy '.local-data') -Force | Out-Null
+    foreach ($name in @('package.json','Start-Playlist-Sync.ps1','src\server.mjs')) { Copy-Item -LiteralPath (Join-Path $source $name) -Destination (Join-Path $legacy $name) }
+    Set-Content -LiteralPath (Join-Path $legacy '.local-data\sync.sqlite') 'portable accounts and links'
+    $stateFile = Join-Path $fixture 'startup.json'
+    @{version=1;addons=@(@{id='Playlist-Sync';root=$legacy},@{id='Playlist-Wizard';root=(Join-Path $fixture 'wizard')})} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $stateFile
+    $stateHash = Hash $stateFile
+    $roots = @(Get-PlaylistSyncRegisteredRoots -StateFile $stateFile -ShortcutPaths @() -NoRegistry)
+    Assert-Install ($roots.Count -eq 1 -and $roots[0] -eq $legacy) 'Discovery must select only Sync registration'
+    $shortcutPath = Join-Path $fixture 'Playlist Sync.lnk'
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $shortcut.Arguments = '-NoProfile -File "' + (Join-Path $legacy 'Start-Playlist-Sync.ps1') + '"'
+    $shortcut.Save()
+    $shortcutRoots = @(Get-PlaylistSyncRegisteredRoots -StateFile (Join-Path $fixture 'absent.json') -ShortcutPaths @($shortcutPath) -NoRegistry)
+    Assert-Install ($shortcutRoots.Count -eq 1 -and $shortcutRoots[0] -eq $legacy) 'Shortcut discovery lost the existing copy'
+    $fresh = Join-Path $fixture 'fresh'
+    $selected = Resolve-PlaylistSyncInstall -DefaultRoot $fresh -DefaultData $data -RegisteredRoots $roots
+    Assert-Install ($selected.root -eq $legacy -and $selected.dataDirectory -eq (Join-Path $legacy '.local-data')) 'Portable discovery lost its data'
+    & (Join-Path $source 'Install-Playlist-Sync.ps1') -ExistingDirectory $selected.root -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
+    $portableRecord = Get-Content -LiteralPath (Join-Path $legacy 'installed.json') -Raw | ConvertFrom-Json
+    Assert-Install ($portableRecord.dataDirectory -eq (Join-Path $legacy '.local-data') -and -not (Test-Path -LiteralPath $fresh)) 'Portable upgrade created a second installation'
+    Assert-Install ((Get-Content -LiteralPath (Join-Path $legacy '.local-data\sync.sqlite') -Raw).Trim() -eq 'portable accounts and links') 'Portable data changed'
+    Assert-Install ((Hash $stateFile) -eq $stateHash) 'Discovery changed companion registration'
+    $selected = Resolve-PlaylistSyncInstall -DefaultRoot $fresh -DefaultData $data -RegisteredRoots @($legacy,$legacy)
+    Assert-Install ($selected.root -eq $legacy) 'Duplicate references must resolve to one copy'
+    $blocked=$false; try { Resolve-PlaylistSyncInstall -DefaultRoot $target -DefaultData $data -RegisteredRoots @($legacy) | Out-Null } catch { $blocked=$_.Exception.Message.Contains('More than one') }
+    Assert-Install $blocked 'Ambiguous copies must require folder selection'
+    $blocked=$false; try { Resolve-PlaylistSyncInstall -DefaultRoot $fresh -DefaultData $data -ExplicitRoot $source -ExplicitData $data | Out-Null } catch { $blocked=$true }
+    Assert-Install $blocked 'Updates must not silently change a data folder'
+    $blocked=$false; try { Resolve-PlaylistSyncInstall -DefaultRoot $fresh -DefaultData $data -ExplicitRoot $data -RequireExisting | Out-Null } catch { $blocked=$true }
+    Assert-Install $blocked 'Folder picker must reject unrelated folders'
+    @{dataDirectory=$data;version='0.10.5'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $target 'installed.json')
+    $selected = Resolve-PlaylistSyncInstall -DefaultRoot $target -DefaultData (Join-Path $fixture 'wrong-data')
+    Assert-Install ($selected.dataDirectory -eq $data) 'Pre-managed setup receipt lost its custom data'
+    & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
+    $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
+    $packageSaved = Get-Content -LiteralPath (Join-Path $target 'package.json') -Raw
+    $packageSaved.Replace('0.10.5','99.0.0') | Set-Content -LiteralPath (Join-Path $target 'package.json')
+    $blocked=$false; try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry } catch { $blocked=$_.Exception.Message.Contains('newer Playlist Sync') }
+    Assert-Install $blocked 'An old EXE must not downgrade a newer installation'
+    Set-Content -LiteralPath (Join-Path $target 'package.json') -Value $packageSaved
+    Set-Content -LiteralPath (Join-Path $target 'src\fixture.txt') 'user-edited program file'
+    New-Item -ItemType Directory -Path (Join-Path $target 'Music') | Out-Null
+    Set-Content -LiteralPath (Join-Path $target 'Music\keep.mp3') 'synthetic music sentinel'
+    $originalRecord = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw
+    $record.files += @{path='..\outside.txt';sha256=('a'*64)}
+    $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $target 'installed.json')
+    $rejected=$false;try { $null=Get-PlaylistSyncRemovalPlan $target } catch { $rejected=$true }
+    Assert-Install $rejected 'Path traversal must fail before any deletion'
+    Assert-Install (Test-Path -LiteralPath (Join-Path $target '.runtime\node.exe')) 'Invalid receipt caused a partial removal'
+    Set-Content -LiteralPath (Join-Path $target 'installed.json') -Value $originalRecord
+    Remove-PlaylistSyncProgramFiles (Get-PlaylistSyncRemovalPlan $target)
+    Assert-Install (-not (Test-Path -LiteralPath (Join-Path $target '.runtime\node.exe'))) 'Owned runtime was not removed'
+    Assert-Install (Test-Path -LiteralPath (Join-Path $target 'src\fixture.txt')) 'Modified file was deleted'
+    Assert-Install (Test-Path -LiteralPath (Join-Path $target 'Music\keep.mp3')) 'Music was deleted'
+    Assert-Install ((Get-Content -LiteralPath (Join-Path $data 'sync.sqlite') -Raw).Trim() -eq 'saved playlist settings') 'Saved settings were changed'
+    Write-Output 'Managed installation checks passed'
+} finally {
+    $full = [IO.Path]::GetFullPath($fixture)
+    $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    if (-not $full.StartsWith($tempRoot,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $full -Leaf) -notmatch '^playlist-sync-install-[a-f0-9]{32}$') { throw 'Unsafe fixture cleanup path' }
+    if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force }
+}

@@ -13,6 +13,36 @@ const ffmpeg = process.env.FFMPEG || (existsSync(join(tools, 'ffmpeg.exe')) ? jo
 const ffprobe = process.env.FFPROBE || (existsSync(join(tools, 'ffprobe.exe')) ? join(tools, 'ffprobe.exe') : 'ffprobe');
 const available = spawnSync(ffmpeg, ['-version'], { windowsHide: true }).status === 0 && spawnSync(ffprobe, ['-version'], { windowsHide: true }).status === 0;
 
+test('Spotisaver synthetic transfers require actual 320 kbps stereo MP3 and preserve its packets and provenance', {skip:!available},async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-spotisaver-audio-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const track={provider:'spotify',id:'a'.repeat(22),key:'spotify:fixture',title:'Fixture Recording',artist:'Fixture Artist',duration:10};
+ const wire={token_param:'key',ctx_param:'ctx',action_param:'action',sig_header:'X-Signature',exp_header:'X-Expiry',actions:{get_playlist:'meta',download_track:'audio'}};
+ for(const [name,bitrate,channels,duration,truncate] of [['low',128,2,10,false],['mid',256,2,10,false],['mono',320,1,10,false],['short',320,2,5,false],['broken',320,2,10,true],['valid',320,2,10,false]]){
+  const source=join(dir,`${name}.mp3`);await run(ffmpeg,['-v','error','-f','lavfi','-i',`sine=frequency=440:duration=${duration}`,'-ar','44100','-ac',String(channels),'-c:a','libmp3lame','-b:a',`${bitrate}k`,'-metadata',`title=${track.title}`,'-metadata',`artist=${track.artist}`,source]);
+  let bytes=await readFile(source);if(truncate)bytes=bytes.subarray(0,Math.floor(bytes.length/2));
+  const fetcher=async raw=>{
+   const path=new URL(raw).pathname;
+   if(path==='/')return new Response(`requestToken:"${'t'.repeat(32)}",wire:${JSON.stringify(wire)}};`);
+   if(path==='/api/get_signature.php')return Response.json({success:true,token:'fixture-signature',exp:123});
+   if(path==='/api/get_playlist.php')return Response.json({tracks:[{id:track.id,name:track.title,artists:[track.artist],duration_ms:10000}]});
+   if(path==='/api/download_track.php')return new Response(bytes,{headers:{'content-type':'audio/mpeg'}});
+   throw Error('Unexpected request');
+  };
+  const d=new Downloads(()=>({ffmpeg,ffprobe,musicFolder:dir,spotisaverMode:'first'}),{fetcher});
+  d.candidates=async function*(){};d.artwork.prepare=async()=>({path:null});
+  const updates=[];
+  if(name!=='valid'){
+   await assert.rejects(d.acquire(track,{id:name},v=>updates.push(v),new AbortController().signal));
+   assert(!updates.some(v=>v.sourceReport?.ok));continue;
+  }
+  const result=await d.acquire(track,{id:name},v=>updates.push(v),new AbortController().signal);
+  assert.equal(result.quality.bitrate,320);assert.equal(result.quality.upstreamQuality,'unverified');
+  const probe=await d.probe(result.file);assert.match(probe.format.tags.comment,/original source quality unverified/);
+  const hash=path=>run(ffmpeg,['-v','error','-i',path,'-map','0:a:0','-c:a','copy','-f','hash','-hash','sha256','-']);
+  assert.equal(await hash(source),await hash(result.file),'The 320 kbps file must not be re-encoded');
+ }
+});
+
 test('real provider covers embed in MP3, M4A and approved FLAC while audio remains unchanged', {skip:!available},async t=>{
  const dir=await mkdtemp(join(tmpdir(),'playlist-art-audio-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const png=join(dir,'cover.png');await run(ffmpeg,['-v','error','-f','lavfi','-i','color=c=red:s=64x64','-frames:v','1',png]);const image=await readFile(png);

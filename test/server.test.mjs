@@ -6,6 +6,21 @@ import { join } from 'node:path';
 import { startServer } from '../src/server.mjs';
 import { request } from 'node:http';
 
+test('paired uninstall requires confirmation and an idle service, then closes only the add-on',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-sync-uninstall-api-'));let launches=0,removed=0;
+ const bridge={connected:false,async connect(){throw Error('No host needed for uninstall');},async removeHost(){removed++;},close(){}};
+ const installation={async status(){return {canUninstall:true};},async uninstall(){launches++;return {started:true};}};
+ const app=await startServer({port:0,dataDir:dir,bridgeClient:bridge,automaticSync:false,installationClient:installation});
+ t.after(async()=>{app.engine.active=null;await app.close();await rm(dir,{recursive:true,force:true});});
+ const origin=new URL(app.url).origin,headers={Authorization:`Bearer ${app.token}`,'Content-Type':'application/json'};
+ const post=(args={},auth=true)=>fetch(origin+'/api/action',{method:'POST',headers:auth?headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'uninstall',args})});
+ assert.equal((await post({confirmed:true},false)).status,401);assert.equal(launches,0);
+ assert.equal((await post()).status,400);assert.equal(launches,0);
+ app.engine.active='fixture';assert.equal((await post({confirmed:true})).status,400);assert.equal(launches,0);app.engine.active=null;
+ assert.equal((await post({confirmed:true})).status,200);assert.equal(launches,1);
+ assert.equal((await post({confirmed:true})).status,409);assert.equal(launches,1);assert.equal(removed,0);
+});
+
 test('a failed library check still attaches the sidebar, preserves links and blocks work until recovery', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'playlist-sync-unavailable-'));
   const models = [], calls = [], failure = 'This rbxport build lacks the library API required by Playlist Sync.';
@@ -61,6 +76,43 @@ test('a failed library check still attaches the sidebar, preserves links and blo
   assert.deepEqual(app.store.get('links', link.id), recoveredLink, 'Losing library capability must not reconcile saved playlists as deleted');
   assert(calls.every(method => method === 'info'));
 });
+test('Spotisaver verification uses saved Spotify metadata and retry retains library and explicit-source guards',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'playlist-sync-browser-api-'));
+  let opens=0,closed=0;const calls=[];
+  const wire={token_param:'token',ctx_param:'ctx',action_param:'action',sig_header:'X-Sig',exp_header:'X-Exp',actions:{get_playlist:'metadata',download_track:'download'}};
+  const track={provider:'spotify',id:'a'.repeat(22),key:'spotify:'+ 'a'.repeat(22),title:'Fixture',artist:'Test',duration:200};
+  const browser={connected:false,async open(){opens++;this.connected=true;},async close(){closed++;this.connected=false;},async fetch(raw){
+    const path=new URL(raw).pathname;calls.push(path);
+    if(path==='/')return new Response(`requestToken:"${'t'.repeat(32)}",wire:${JSON.stringify(wire)}};`);
+    if(path==='/api/get_signature.php')return Response.json({success:true,token:'fixture',exp:12345});
+    if(path==='/api/get_playlist.php')return Response.json({tracks:[{id:track.id,name:track.title,artists:[track.artist],duration_ms:200000}]});
+    throw Error('Verification must not download audio');
+  }};
+  const bridge={connected:false,async connect(){this.connected=true;},async call(method){assert.equal(method,'info');return {libraryId:'fixture',playlists:[{id:'target',name:'Fixture'}]};},async updateHost(){return {ready:true};},async removeHost(){},close(){this.connected=false;}};
+  const app=await startServer({port:0,dataDir:dir,bridgeClient:bridge,spotisaverBrowser:browser,automaticSync:false});
+  t.after(async()=>{await app.close();await rm(dir,{recursive:true,force:true});});
+  const base=new URL(app.url).origin,headers={Authorization:`Bearer ${app.token}`,'Content-Type':'application/json'};
+  const post=(action,args={})=>fetch(base+'/api/action',{method:'POST',headers,body:JSON.stringify({action,args})});
+  await post('connect');
+  app.store.put('links','link',{id:'link',libraryId:'fixture',playlistId:'target',automatic:false});
+  app.store.put('rows','row',{id:'row',linkId:'link',present:true,status:'review',track});
+  assert.equal((await post('spotisaver-retry',{id:'row'})).status,400);
+  assert.equal((await post('spotisaver-verify',{id:'unknown',url:'https://arbitrary.test'})).status,400);assert.equal(opens,0);
+  assert.equal((await post('spotisaver-verify',{id:'row'})).status,200);
+  let state;for(let i=0;i<20;i++){state=await (await fetch(base+'/api/panel',{headers})).json();if(state.spotisaver.connected)break;await new Promise(r=>setTimeout(r,10));}
+  assert.equal(state.spotisaver.connected,true);assert.equal(opens,1);assert.equal(app.store.all('jobs').length,0);assert(!calls.includes('/api/download_track.php'));
+  app.engine.saveSettings({spotisaverMode:'first'});let resolveCalls=0,downloadCalls=0;
+  app.engine.resolveRow=async(id,value)=>{assert.equal(id,'row');assert.equal(value.action,'retry');resolveCalls++;};
+  app.engine.downloadRow=async id=>{assert.equal(id,'row');downloadCalls++;};
+  bridge.libraryReady=false;assert.equal((await post('spotisaver-retry',{id:'row'})).status,400);assert.equal(resolveCalls,0);bridge.libraryReady=true;
+  for(const override of [{overrideUrl:'https://example.test'},{sourcePath:'fixture'},{qualityApproval:{codec:'aac'}},{originalOnly:true}]){
+    app.store.put('jobs','job',{id:'job',rowId:'row',...override});assert.equal((await post('spotisaver-retry',{id:'row'})).status,400);
+  }
+  app.store.delete('jobs','job');assert.equal((await post('spotisaver-retry',{id:'row'})).status,200);assert.equal(resolveCalls,1);assert.equal(downloadCalls,1);
+  app.engine.active='fixture';assert.equal((await post('spotisaver-check')).status,400);assert.equal((await post('spotisaver-disconnect')).status,400);app.engine.active=null;
+  assert.equal((await post('spotisaver-disconnect')).status,200);assert.equal(closed,1);
+});
+
 test('local API requires pairing, rejects cross-origin requests and keeps demo read-only', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'playlist-sync-api-'));
   const app = await startServer({ port: 0, dataDir: dir, demo: true });

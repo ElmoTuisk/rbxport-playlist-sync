@@ -13,3 +13,4 @@ cookies*.txt
 .installer-test/
 installed.json
 LOCAL_WORKSPACE.md
+dist/

@@ -3,12 +3,12 @@ export function mountPanel(root, initial, send) {
   if (root.playlistSyncPanel) { root.playlistSyncPanel.update(initial); return root.playlistSyncPanel; }
   let model = initial, expanded = null, mode = '', reviewing = null, error = '', busy = false, allFor = null;
   let bulkFor=null,bulkPlan=null,bulkAlternates=false,bulkNotice='';
-  let qualityFor=null,qualityPlan=null;
+  let qualityFor=null,qualityPlan=null,advanced=false,uninstallReview=false;
   const reviewDrafts={},reviewNotices={};let qualityPending=null;
   let jobsByRow=new Map((initial.jobs || []).map(job=>[job.rowId,job]));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const libraryUnavailable = () => model.connected === false && !model.demo;
-  const libraryActions = new Set(['sync','recheck','fallback','retry-missing','link','bulk-open','bulk-confirm','quality-bulk-open','quality-bulk-confirm','lower-review','lower-confirm']);
+  const libraryActions = new Set(['sync','recheck','fallback','retry-missing','link','bulk-open','bulk-confirm','quality-bulk-open','quality-bulk-confirm','lower-review','lower-confirm','spotisaver-retry']);
   const button = (action, text, id = '', extra = '') => `<button type="button" data-action="${action}" data-id="${esc(id)}" ${extra}${libraryUnavailable() && libraryActions.has(action) ? ' disabled' : ''}>${text}</button>`;
   const rows = () => model.rows?.[expanded] || [];
   const needsHelp = row => !['ready', 'matched', 'ignored'].includes(row.status);
@@ -32,13 +32,16 @@ export function mountPanel(root, initial, send) {
     const job=jobsByRow.get(row.id),offer=qualityOffer(row);
     if(offer)return offer.label;
     const audio=report=>`${String(report.codec || 'audio').toUpperCase()}${report.bitrate>0?' '+Math.round(report.bitrate)+' kbps':''}`;
+    const evidence=report=>report.upstreamQuality==='unverified'?'encoding verified · original quality unverified':'verified';
     if(inProgress(row)){
       if(job.sourcePath && job.sourceReport?.ok && !job.sourceReport.belowStandard)
-        return `${audio(job.sourceReport)} verified · ${['importing','analysing'].includes(job.status)?'Finishing import':'Preparing file'}`;
+        return `${audio(job.sourceReport)} ${evidence(job.sourceReport)} · ${['importing','analysing'].includes(job.status)?'Finishing import':'Preparing file'}`;
       return job.status==='searching'?`Searching ${job.acquisition==='soulseek'?'Soulseek':'sources'} for audio at your standard`:job.status==='downloading'?`Downloading${job.acquisition==='soulseek'?' from Soulseek':''} · quality check pending`:job.status==='validating'?'Verifying downloaded audio':'Finishing verified import';
     }
-    if(row.status==='ready' && job?.status==='ready' && job.quality?.ok && !job.quality.belowStandard)return `Ready · ${audio(job.quality)} · verified`;
-    if(needsHelp(row) && job?.file && job.quality?.ok && !job.quality.belowStandard)return `${audio(job.quality)} verified · import needs retry`;
+    if(row.status==='ready' && job?.status==='ready' && job.quality?.ok && !job.quality.belowStandard)return `Ready · ${audio(job.quality)} · ${evidence(job.quality)}`;
+    if(needsHelp(row) && job?.file && job.quality?.ok && !job.quality.belowStandard)return `${audio(job.quality)} ${evidence(job.quality)} · import needs retry`;
+    if(row.status==='ready' && row.audioQuality?.upstreamQuality==='unverified')return `Ready · ${audio(row.audioQuality)} · ${evidence(row.audioQuality)}`;
+    if(row.status==='matched' && row.audioQuality?.upstreamQuality==='unverified')return 'In collection · original quality unverified';
     return row.status === 'review' && row.reviewKind === 'match' ? 'Check existing match' : needsHelp(row)&&row.track.sourceAudio?.preview ? 'SoundCloud preview only · full recording needed' : needsHelp(row)&&row.track.sourceAudio?.unavailable ? 'Original unavailable · Sync to search alternatives' : labels[row.status] || row.status;
   };
   function render(force = false) {
@@ -58,7 +61,7 @@ export function mountPanel(root, initial, send) {
           ${rows().filter(needsHelp).map(row => `<div class="ps-track"><div><strong>${esc(row.track.title)}</strong><small${qualityOffer(row)?' class="ps-quality"':''}>${esc(rowLabel(row))}</small></div>${button('review', reviewing === row.id ? 'Close' : inProgress(row)?'Details':qualityOffer(row)?.pending ? 'Review quality' : 'Resolve', row.id, `aria-expanded="${reviewing === row.id}"`)}</div>${reviewing === row.id ? reviewForm(row) : ''}`).join('') || `<p class="ps-muted">${link.lastCheck ? 'No tracks need attention.' : 'Sync to check this playlist.'}</p>`}
           <details class="ps-more" data-all-tracks="${esc(link.id)}" ${allFor===link.id?'open':''}><summary>All tracks · ${rows().length}</summary>${allFor===link.id?rows().map(r => `<div class="ps-track"><div><strong>${esc(r.track.title)}</strong><small${qualityOffer(r)||r.audioQuality?.belowStandard?' class="ps-quality"':''}>${esc(r.track.artist)} · ${esc(rowLabel(r))}${r.audioQuality?.belowStandard?` · LOWER ${esc(r.audioQuality.codec.toUpperCase())} ${r.audioQuality.bitrate?Math.round(r.audioQuality.bitrate)+' kbps':'bitrate unknown'}${r.audioQuality.officialOriginal?' · official original':''}`:''}</small></div></div>`).join(''):''}</details></div>` : ''}</section>`;
       }).join('') || '<p class="ps-empty">Link a Spotify or SoundCloud playlist.</p>'}</div>
-      ${mode === 'link' ? linkForm() : ['settings','soulseek'].includes(mode) ? settingsForm() : ''}
+      ${mode === 'link' ? linkForm() : ['settings','soulseek'].includes(mode) ? settingsForm() + uninstallControls() : ''}
       <div class="ps-foot">${button('link', '+ Link playlist', '', 'class="ps-text"')}<span>${model.settings?.quality==='club-aac-256'?'MP3 320 · AAC 256':'320 kbps MP3'}</span>${model.active ? button('cancel', 'Cancel') : ''}</div>`;
   }
   function linkForm() {
@@ -85,7 +88,7 @@ export function mountPanel(root, initial, send) {
     const attempts=job?.attempts || [];
     const sourceDetails=attempts.length ? '<details class="ps-more"><summary>Source attempts</summary>'+attempts.filter(a=>a.status!=='searching').slice(-12).map(a=>'<p class="ps-muted">'+esc(a.source)+': '+esc(a.message)+'</p>').join('')+'</details>' : '';
     const official=job?.officialDownload || row.track.sourceAudio?.officialDownload;
-    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${official?.enabled||official?.external?`<p class="ps-muted">${official.enabled?'Artist-enabled original download. If it is unavailable, SoundCloud sign-in may be required.':'The artist links to an external download page.'} ${button('official','View official download',row.id)}</p>`:''}${reviewNotices[row.id]?`<p role="status" class="ps-muted">${esc(reviewNotices[row.id])}</p>`:''}${qualityForm(row,job)}${sourceDetails}<label>Resolve<select name="action" id="ps-resolution">${[['file','Use an audio file'],['match','Match existing track'],['source','Use a source URL'],['retry','Retry'],['ignore','Ignore']].map(([value,label])=>`<option value="${value}" ${action===value?'selected':''}>${label}</option>`).join('')}</select></label><div id="ps-resolution-fields">${resolutionFields(action,row,draft,job)}</div><div class="ps-form-actions">${button('dismiss-review', 'Close')}<button ${busy||model.active?'disabled':''}>${action==='source'?'Check source & download':'Save'}</button></div></form>`;
+    return `<form data-form="resolve" data-id="${esc(row.id)}" class="ps-form"><strong>${esc(row.track.title)}</strong><p class="ps-muted">${esc(row.reason)}</p>${official?.enabled||official?.external?`<p class="ps-muted">${official.enabled?'Artist-enabled original download. If it is unavailable, SoundCloud sign-in may be required.':'The artist links to an external download page.'} ${button('official','View official download',row.id)}</p>`:''}${reviewNotices[row.id]?`<p role="status" class="ps-muted">${esc(reviewNotices[row.id])}</p>`:''}${row.track.provider==='spotify' && model.settings?.spotisaverMode && model.settings.spotisaverMode!=='off' && !job?.overrideUrl && !job?.sourcePath && !job?.qualityApproval && !job?.originalOnly?spotisaverControls(row.id):''}${qualityForm(row,job)}${sourceDetails}<label>Resolve<select name="action" id="ps-resolution">${[['file','Use an audio file'],['match','Match existing track'],['source','Use a source URL'],['retry','Retry'],['ignore','Ignore']].map(([value,label])=>`<option value="${value}" ${action===value?'selected':''}>${label}</option>`).join('')}</select></label><div id="ps-resolution-fields">${resolutionFields(action,row,draft,job)}</div><div class="ps-form-actions">${button('dismiss-review', 'Close')}<button ${busy||model.active?'disabled':''}>${action==='source'?'Check source & download':'Save'}</button></div></form>`;
   }
   function resolutionFields(action,row,draft={},job) {
     return action==='file'?`<label>Audio file path<input name="path" value="${esc(draft.path ?? (job?.acquisition==='manual'?job.sourcePath:'') ?? '')}" required></label>`:action==='source'?`<label>Source URL<input name="url" type="url" value="${esc(draft.url ?? job?.overrideUrl ?? '')}" required></label>`:action==='match'?matchFields(row):'';
@@ -99,13 +102,22 @@ export function mountPanel(root, initial, send) {
     const candidates = row?.candidates || [];
     return candidates.length ? `<label>Existing track<select name="localId" required>${candidates.map(c => `<option value="${esc(c.local.id)}">${esc(c.local.title)} · ${esc(c.local.artist)} · ${Math.round(c.local.duration)}s</option>`).join('')}</select></label><p class="ps-muted">Confirm the recording and mix before saving.</p>` : '<label>rbxport track ID<input name="localId" required></label>';
   }
+  function spotisaverControls(id='') {
+    const status=model.spotisaver || {},waiting=['opening','checking'].includes(status.state),disabled=busy||model.active||waiting?'disabled':'';
+    return `<p class="ps-muted" role="status">${esc(status.message || 'Verify in a dedicated browser window. Your usual browser profile stays separate.')}</p><div class="ps-form-actions">${button('spotisaver-verify','Verify Spotisaver',id,disabled)}${status.state==='needs-verification'?button('spotisaver-check','Check verification','',disabled):''}${status.connected?(id?button('spotisaver-retry','Retry download',id,disabled):button('spotisaver-disconnect','Disconnect','',disabled)):''}</div>`;
+  }
   function settingsForm() {
     const s = model.settings || {};
     const spotify = model.spotify || {};
     const soulseek = model.soulseek || {};
-    return `<div class="ps-form"><form data-form="settings"><label>Download folder<input name="musicFolder" value="${esc(s.musicFolder)}" required></label><label>Audio standard<select name="quality"><option value="strict-mp3-320" ${s.quality!=='club-aac-256'?'selected':''}>MP3 320 kbps / lossless</option><option value="club-aac-256" ${s.quality==='club-aac-256'?'selected':''}>Also allow AAC 256 kbps or higher</option></select></label><details class="ps-more"><summary>Advanced</summary>${[['ytdlp','yt-dlp'],['ffmpeg','FFmpeg'],['ffprobe','FFprobe'],['cookiesFile','SoundCloud cookies file']].map(([key,label]) => `<label>${label}<input name="${key}" value="${esc(s[key])}"></label>`).join('')}<label class="ps-check"><input type="checkbox" name="allowLowerOfficial" ${s.allowLowerOfficial!==false ? 'checked' : ''}> Accept artist-enabled official downloads at their original quality</label><p class="ps-muted">Official originals are tried first and labelled with their actual quality. Lower-quality stream copies still need confirmation. SoundCloud sign-in may be needed for original downloads; supply your cookies file above.</p><label class="ps-check"><input type="checkbox" name="autoAnalyse" ${s.autoAnalyse ? 'checked' : ''}> Analyze new tracks</label><p class="ps-muted">MP3 requires 320 kbps; optional AAC requires 256 kbps. Lossless is accepted. AAC is preserved as M4A; lower-quality audio is never upscaled. Duration and full decoding are checked.</p></details><div class="ps-form-actions">${button('dismiss','Done')}<button>Save</button></div></form>
+    return `<div class="ps-form"><form data-form="settings"><label>Download folder<input name="musicFolder" value="${esc(s.musicFolder)}" required></label><label>Audio standard<select name="quality"><option value="strict-mp3-320" ${s.quality!=='club-aac-256'?'selected':''}>MP3 320 kbps / lossless</option><option value="club-aac-256" ${s.quality==='club-aac-256'?'selected':''}>Also allow AAC 256 kbps or higher</option></select></label><details class="ps-more" data-advanced ${advanced?'open':''}><summary>Advanced</summary><label>Spotisaver for Spotify tracks<select name="spotisaverMode">${[['off','Off'],['fallback','Last resort, after Soulseek'],['first','Try first, then other sources']].map(([value,label])=>`<option value="${value}" ${(s.spotisaverMode || 'off')===value?'selected':''}>${label}</option>`).join('')}</select></label><p class="ps-muted">Enabling sends Spotify track details to Spotisaver. Only files verified as MP3 at 320 kbps pass. Spotisaver does not disclose the original audio quality; this remains labelled unverified. Last resort runs after web sources and enabled Soulseek; failed final checks stay in review.</p>${spotisaverControls()}${[['ytdlp','yt-dlp'],['ffmpeg','FFmpeg'],['ffprobe','FFprobe'],['cookiesFile','SoundCloud cookies file']].map(([key,label]) => `<label>${label}<input name="${key}" value="${esc(s[key])}"></label>`).join('')}<label class="ps-check"><input type="checkbox" name="allowLowerOfficial" ${s.allowLowerOfficial!==false ? 'checked' : ''}> Accept artist-enabled official downloads at their original quality</label><p class="ps-muted">Official originals are tried first and labelled with their actual quality. Lower-quality stream copies still need confirmation. SoundCloud sign-in may be needed for original downloads; supply your cookies file above.</p><label class="ps-check"><input type="checkbox" name="autoAnalyse" ${s.autoAnalyse ? 'checked' : ''}> Analyze new tracks</label><p class="ps-muted">MP3 requires 320 kbps; optional AAC requires 256 kbps. Lossless is accepted. AAC is preserved as M4A; lower-quality audio is never upscaled. Duration and full decoding are checked.</p></details><div class="ps-form-actions">${button('dismiss','Done')}<button>Save</button></div></form>
       <details class="ps-more"><summary>${spotify.connected ? 'Spotify connected' : spotify.status === 'waiting' ? 'Spotify · finish sign-in' : 'Connect Spotify'}</summary><form data-form="spotify">${spotify.message ? `<p class="ps-muted" role="status">${esc(spotify.message)}</p>` : ''}<p class="ps-muted">In the Spotify developer dashboard, register this exact redirect URI. Then use Connect below; the address itself is not a sign-in link.</p><code>http://127.0.0.1:43821/oauth/spotify</code><label>Client ID<input name="clientId" value="${esc(spotify.clientId || '')}" required autocomplete="off"></label><button ${busy ? 'disabled' : ''}>${spotify.connected ? 'Reconnect' : 'Connect'}</button></form></details>
       <details class="ps-more" ${mode === 'soulseek' ? 'open' : ''}><summary>Soulseek fallback${soulseek.enabled ? ' · enabled' : ''}</summary><form data-form="soulseek"><p class="ps-muted">Use an existing Soulseek account. Details are encrypted for your Windows account. The verified helper downloads automatically on first use. Only acquire audio you are entitled to download.</p><label>Username<input name="username" value="${esc(soulseek.username || '')}" required autocomplete="off"></label><label>Password<input name="password" type="password" ${soulseek.configured ? 'placeholder="Leave blank to keep saved password"' : 'required'} autocomplete="new-password"></label><label class="ps-check"><input type="checkbox" name="enabled" ${!soulseek.configured || soulseek.enabled ? 'checked' : ''}> Use as fallback on Sync</label><label class="ps-check"><input type="checkbox" name="allowIncoming" ${soulseek.allowIncoming ? 'checked' : ''}> Allow incoming peer connections</label><p class="ps-muted">Uses a temporary Soulseek listener on TCP 49998 while searching. No file sharing or firewall/router changes. Some peers cannot reply without it.</p><p class="ps-muted">${soulseek.configured ? 'Account saved. A search verifies sign-in. ' : ''}An active Soulseek client may need a separate account. Quality and length checks remain strict.</p><button ${busy ? 'disabled' : ''}>Save account</button></form></details></div>`;
+  }
+  function uninstallControls() {
+    if(!model.installation?.canUninstall)return '';
+    const disabled=busy||model.active?'disabled':'';
+    return uninstallReview?`<div data-uninstall-review><strong>Uninstall Playlist Sync?</strong><p class="ps-muted">Removes this add-on and its automatic startup. Your music, playlists, saved settings and Playlist Wizard are kept.</p><div class="ps-form-actions">${button('uninstall-cancel','Keep installed')}${button('uninstall-confirm','Uninstall Playlist Sync','',disabled)}</div></div>`:`<div class="ps-form-actions">${button('uninstall-review','Uninstall Playlist Sync','','class="ps-text" '+disabled)}</div>`;
   }
   async function act(action, value = {}) {
     error = ''; busy = true;
@@ -137,7 +149,10 @@ export function mountPanel(root, initial, send) {
       if(result && !error){bulkNotice=result.message;bulkFor=null;bulkPlan=null;render(true);}
     }
     else if (action === 'link') { mode = mode === 'link' ? '' : 'link'; expanded = null; render(true); if (mode) await act('options'); }
-    else if (action === 'settings') { mode = mode === 'settings' ? '' : 'settings'; expanded = null; render(true); }
+    else if (action === 'settings') { mode = mode === 'settings' ? '' : 'settings'; expanded = null; uninstallReview=false;render(true); }
+    else if(action==='uninstall-review'){if(model.installation?.canUninstall && !model.active && !busy){uninstallReview=true;render(true);}}
+    else if(action==='uninstall-cancel'){uninstallReview=false;render(true);}
+    else if(action==='uninstall-confirm'){if(uninstallReview && !model.active && !busy)await act('uninstall',{confirmed:true});}
     else if (action === 'fallback' && !model.soulseek?.enabled) { mode = 'soulseek'; expanded = null; render(true); requestAnimationFrame(() => root.querySelector('[data-form=soulseek]')?.scrollIntoView({block:'nearest'})); }
     else if (action === 'dismiss') { mode = ''; render(true); }
     else if (action === 'review') {
@@ -176,6 +191,7 @@ export function mountPanel(root, initial, send) {
     reviewDrafts[form.dataset.id]={...reviewDrafts[form.dataset.id],[event.target.name]:event.target.value};qualityPending=null;
   });
   root.addEventListener('toggle',event=>{
+    if(event.target.dataset?.advanced!==undefined){advanced=event.target.open;return;}
     const id=event.target.dataset?.allTracks;if(!id)return;
     const next=event.target.open?id:null;if(allFor===next)return;allFor=next;render(true);
   },true);

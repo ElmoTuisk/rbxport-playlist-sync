@@ -18,4 +18,4 @@ if (Test-Path -LiteralPath $pidFile) {
     }
     Remove-Item -LiteralPath $pidFile
 }
-Write-Output 'Add-on stopped. Close and relaunch rbxport normally to disable its automation port.'
+Write-Output 'Add-on stopped for this session. If automatic attachment is enabled, Configure-Rbxport-Startup.ps1 -Disable removes its next-sign-in launch.'

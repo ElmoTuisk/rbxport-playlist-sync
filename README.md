@@ -2,7 +2,7 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental v0.10.5 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.11.0 · Tested with rbxport 1.9.0**
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,12 +19,24 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-0.10.5-windows-setup.zip`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest), then **Extract All…**
-3. Close rbxport and run **`Install-Playlist-Sync.cmd`**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not.
-4. Open the **Playlist Sync** Desktop or Start Menu shortcut, then click **Playlist sync** below **Tag List** in rbxport.
+2. Download **`playlist-sync-0.11.0-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Stop Playlist Sync first if it is running.
+4. Open rbxport normally with the default automatic-attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
 
-**Use the Playlist Sync shortcut for future sessions.** Opening rbxport alone does not load the add-on.
+To load the add-on when you open regular rbxport, run **Configure-Rbxport-Startup.ps1** from its installed folder (right-click → Run with PowerShell). This starts its background service, adds a Windows sign-in entry and enables the local connection for future rbxport launches. Run it once for each add-on you want enabled; Playlist Sync and Playlist Wizard remain independent. Allow up to 20 seconds for the sidebar buttons to attach. Use the compatible rbxport 1.9.0 installation; the older Store 0.19.3 build lacks the required library API. Without this optional setup, use the Playlist Sync shortcut.
+
+### Install, update and uninstall
+
+Every release provides one **`playlist-sync-<version>-windows-setup.exe`**. Extraction, the private runtime and checksum-verified audio tools are handled automatically. Internet and an existing compatible rbxport installation are required. Administrator access is not required.
+
+For an update, stop the running Playlist Sync copy first. Setup finds the existing copy through its registration, shortcuts or standard installation folder, updates it in place and retains its saved-data location. For an unregistered portable copy, use **Choose existing folder**. Multiple detected copies require that choice. Setup refuses a running copy before changing files.
+
+**Show Playlist Sync when rbxport opens** is checked by default. It starts this add-on in the background and registers its own Windows sign-in shortcut. Close and reopen rbxport once after installation if necessary. The add-on remains separate from the host executable.
+
+Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through the EXE adds this uninstall option.
+
+The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. To build it yourself on Windows x64, run `powershell -NoProfile -ExecutionPolicy Bypass -File Build-Installer.ps1`; the result is in `dist/`. The executable is currently unsigned.
 
 ## What it does
 
@@ -64,6 +76,8 @@ Deleting a target clears its add-on link after a successful library check, while
 
 Enable Soulseek under **gear → Soulseek fallback** with your existing account; its helper installs automatically. Online availability does not guarantee an accessible file at your selected quality. Protected, preview-only, wrong-version and broken files stay blocked.
 
+The add-on also offers **gear → Advanced → Spotisaver for Spotify tracks**: **Off**, **Last resort, after Soulseek**, or **Try first, then other sources**. Last resort runs only after web discovery and enabled Soulseek supply no verified file; with Soulseek disabled, it follows web discovery. It requires an actual 320 kbps MP3 and preserves that audio without re-encoding. Original source quality stays labelled **unverified**. Use **Verify Spotisaver** to open its dedicated Edge/Chrome window, finish any verification, then retry in the app. Keep that window open or minimized. Three selected live recordings passed the 320 kbps checks; broader reliability remains unproven. The option defaults off. [Connection details and limitations](docs/spotisaver.md).
+
 [Missing-song actions](docs/usage.md#missing-songs--check-source) · [Soulseek setup](docs/usage.md#soulseek-fallback).
 
 </details>
@@ -95,7 +109,7 @@ New MP3/M4A/approved FLAC downloads embed the exact Spotify album or SoundCloud 
 
 **Stop:** Start Menu → Playlist Sync → **Stop Playlist Sync**.
 
-**Update:** stop the add-on, close rbxport, extract the latest setup ZIP and run `Install-Playlist-Sync.cmd` again. Saved links, settings, accounts and music are preserved. Updates are manual; matching program files are overwritten, but obsolete files are not yet removed automatically.
+**Update:** stop the add-on and run the latest setup EXE. It updates the detected installation; use **Choose existing folder** for an unregistered portable copy. Saved links, settings, accounts and music are preserved. Updates are manual; matching program files are overwritten, but obsolete files are not yet removed automatically.
 
 Updating rbxport is separate and may require an add-on update. Reopen through Playlist Sync afterward. Keep the data folder, normally `%LOCALAPPDATA%\rbxport-playlist-sync`, private.
 
@@ -106,7 +120,7 @@ Updating rbxport is separate and may require an add-on update. Reopen through Pl
 <details>
 <summary><strong>Troubleshooting</strong> — missing panel and connection errors</summary>
 
-**No panel?** Close rbxport normally and reopen through **Playlist Sync**. Look below Tag List; its background service must remain running.
+**No panel?** With automatic attachment configured, open compatible rbxport and allow up to 20 seconds. Otherwise open the **Playlist Sync** shortcut. Look below Tag List; its background service must remain running. If you enabled startup while rbxport was already open without a local connection, close and reopen rbxport normally once.
 
 **Library error?** rbxport **1.9.0** is tested; Store **0.19.3** lacks the required library API. The popup shows the problem and disables library actions. Old host errors clear after a verified reconnect; **Recheck files** refreshes song matches.
 

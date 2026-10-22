@@ -1,13 +1,13 @@
-# Upload this add-on to GitHub
+# Publishing Playlist Sync on GitHub
 
-The repository’s README is the installation page. There is no separate website to host or deploy.
+The public [repository](https://github.com/ElmoTuisk/rbxport-playlist-sync) contains the full source and installer code. Its README is the installation page.
 
-1. Run `Package-Addon.ps1` from the add-on folder. It creates `playlist-sync-0.10.5-windows-setup.zip` using an allowlist that excludes personal data, music, tools, runtimes and caches.
-2. Extract that ZIP into a new folder. Use its **contents** as the standalone add-on repository root. Do not upload the original working folder or the entire rbxport checkout.
-3. Create an empty public repository on GitHub, for example `rbxport-playlist-sync`. Keep the included README and GPL license. Upload the extracted files, keeping their folder structure. GitHub Desktop or Git can include hidden files such as `.github` and `.gitignore`.
-4. Open **Releases → Draft a new release**, use tag `v0.10.5`, describe the experimental Windows release, and attach the setup ZIP as a release asset. Publish when your release checks are complete.
-5. Visit the repository’s main page. GitHub displays the README automatically, including the installation and first-sync instructions.
+1. Follow the [release checklist](releasing.md), run the tests and update versions, changelog and validation evidence.
+2. Review the staged source. Exclude private data, downloaded tools, music, logs and unrelated development projects.
+3. Push the source and a matching version tag (for this release, `v0.11.0`).
+4. The GitHub Actions workflow waits for Windows and Linux tests, builds and verifies the EXE, and publishes the EXE, source ZIP and SHA-256 checksums.
+5. Confirm all assets exist on the release. Link the EXE as the main install/update download. Do not publish a ZIP-only replacement if the EXE build fails.
 
-Before publishing, follow [the release checklist](releasing.md) and inspect [validation](validation.md). A clean-machine internet installation and live Spotify account sign-in still need release testing. Never publish `.local-data`, `.tools`, `.runtime`, `.install-cache`, `.installer-test`, `installed.json`, cookies, tokens, music, private screenshots or launch pairing URLs.
+For local builds, run `Build-Installer.ps1`; its output is in `dist/`. `Package-Addon.ps1` builds the source ZIP. The embedded payload contains source; installation downloads pinned dependencies and checks their hashes. The EXE is currently unsigned. See [validation](validation.md) for tests and remaining clean-machine limitations.
 
-The existing `chrisle/rbxport` remote belongs to the host application; this add-on is published separately at [ElmoTuisk/rbxport-playlist-sync](https://github.com/ElmoTuisk/rbxport-playlist-sync). Setup scripts never publish repositories or releases automatically.
+Never publish credentials, cookies, pairing URLs, music, private screenshots or ignored local state. The add-on is independent of the upstream rbxport application; installer scripts do not push source or publish releases.

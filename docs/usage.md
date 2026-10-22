@@ -7,15 +7,19 @@ Setup, playlist actions, audio policies and troubleshooting in detail.
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.10.5-windows-setup.zip`** under Assets. Use the setup ZIP, rather than “Source code”.
-3. Right-click the ZIP → **Extract All…** Keep the extracted files together.
-4. Close rbxport normally, then double-click **`Install-Playlist-Sync.cmd`** in the extracted folder.
-5. Wait for **“Installed successfully”**. Setup downloads and verifies the required tools, creates Desktop and Start Menu shortcuts, and launches the add-on. No administrator access or separate Node installation is needed; internet access is required.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.11.0-windows-setup.exe`**.
+3. Stop Playlist Sync if it is running, then open the EXE and click **Install / Update**.
+4. Setup downloads verified tools and creates shortcuts. Internet is required; administrator access and a separate Node installation are not.
+5. Leave **Show Playlist Sync when rbxport opens** checked to enable automatic attachment. Open compatible rbxport normally; close and reopen it once if needed. Without automatic attachment, use the Playlist Sync shortcut.
 6. In rbxport, click **Playlist sync**, directly below **Tag List** on the left.
 
-For future sessions, use the **Playlist Sync** Desktop or Start Menu shortcut. If rbxport is already open from its normal shortcut, close it normally first.
+For automatic attachment, run `Configure-Rbxport-Startup.ps1` from the installed add-on folder (right-click → Run with PowerShell). It enables the current user's local rbxport connection, starts the background service immediately and registers a hidden launcher at Windows sign-in. Open compatible rbxport normally and allow up to 20 seconds for the sidebar entry. Run the same setup in Playlist Wizard's separate folder to enable both. Installer automation can also pass `-StartWithRbxport`. If rbxport was already open without the connection, close and reopen it normally once. No host window opens at sign-in.
 
-The sidebar entry is attached by the running add-on; launching rbxport alone does not start it. The launcher now checks that the button is visible before claiming success. Compatible Store packages are resolved from their current registered location; the older Store build 0.19.3 lacks the required library API and is excluded from automatic selection. Your compatible standalone installation remains available. Only rbxport 1.9.0 has been tested end to end; package discovery is not a guarantee of compatibility with later releases.
+To disable automatic attachment, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<installed folder>\Configure-Rbxport-Startup.ps1" -Disable`, then use the Stop shortcut if you also want the current service stopped. Disabling one add-on leaves the other enabled. Disabling the last restores the previous user connection setting. Stop by itself lasts until the next Windows sign-in or manual add-on launch; it does not remove startup registration. There is no automatic updater.
+
+Without automatic attachment, use the **Playlist Sync** Desktop or Start Menu shortcut. If rbxport is already open without its local connection, close it normally first.
+
+The sidebar entry is attached by the running add-on. Automatic attachment keeps that service available after sign-in; the manual launcher checks that the button is visible before claiming success. Compatible Store packages are resolved from their current registered location; the older Store build 0.19.3 lacks the required library API and is excluded from automatic selection. Use the compatible standalone installation if both versions are present. Only rbxport 1.9.0 has been tested end to end; package discovery is not a guarantee of compatibility with later releases.
 
 The sidebar now attaches even when the library compatibility check fails. Its popup explains the problem and pauses library actions instead of disappearing. Saved links stay intact, and a successful reconnect restores the controls. This does not add syncing support to an incompatible host.
 
@@ -141,9 +145,10 @@ Deleting a linked playlist in rbxport also clears its add-on link, pending entri
 ## Stop or update
 
 - **Stop:** Start Menu → Playlist Sync → **Stop Playlist Sync**. Close rbxport and reopen it normally to disable its local automation connection.
-- **Update:** Stop the add-on, close rbxport, extract the new setup ZIP and run `Install-Playlist-Sync.cmd` again. Saved links, settings and accounts are preserved in the separate data folder. Setup overwrites matching program files but does not yet remove obsolete files from older versions. Updates are manual; there is no automatic updater. After a successful install, the downloaded ZIP and extracted setup folder can be deleted.
+- **Update:** Stop the add-on and run the latest setup EXE. Setup checks installation registration, shortcuts and the standard folder, then updates that copy in place. Use **Choose existing folder** for an unregistered portable copy or to resolve multiple copies. Saved links, accounts, settings and music stay in their existing location. Matching program files are overwritten; obsolete files are not yet removed automatically. Updates remain manual.
+- **Uninstall:** Use **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Finish or cancel active work, then confirm. Music, library playlists, saved settings, edited files and companion add-ons are retained.
 - **Updating rbxport itself:** Its installation is separate from the add-on and saved data. Update rbxport normally, close it, then reopen it through the Playlist Sync shortcut. Compatibility is currently tested with rbxport 1.9.0. A newer release can change automation commands, the local connection or sidebar structure and require an add-on update; compatibility is not guaranteed.
-- **Can’t find the panel?** Close rbxport normally and reopen it through the **Playlist Sync** shortcut. Look below Tag List. A missing local connection or changed sidebar produces a launcher error. A failed library check stays visible in the popup with syncing disabled. The ordinary rbxport/Store shortcut does not load the add-on. Use **Reconnect** after correcting the connection.
+- **Can’t find the panel?** With automatic attachment configured, open compatible rbxport normally and allow up to 20 seconds. Otherwise use the **Playlist Sync** shortcut. Look below Tag List. A missing local connection or changed sidebar produces a launcher error. A failed library check stays visible in the popup with syncing disabled. The older Store 0.19.3 entry remains incompatible even with startup enabled. Use **Reconnect** after correcting the connection.
 
 For a connection-only diagnostic launch, the service accepts `node src/server.mjs --pause-automatic` (with your usual `--data-dir` if applicable). This pauses scheduled sync for that process without changing saved playlist preferences; manual Sync remains available. To resume normal scheduling, stop the service with **Stop Playlist Sync**, then open the ordinary Playlist Sync shortcut again.
 
