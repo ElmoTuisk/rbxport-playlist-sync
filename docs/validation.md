@@ -1,12 +1,14 @@
 # Validation record
 
-## EXE updates and release 0.11.0 — 23 October 2026
+## EXE updates and release 0.11.1 — 23 October 2026
 
 All **179 Windows tests passed**, with real FFmpeg/ffprobe and DPAPI and no skips (23.11 seconds). External fetches were blocked while loopback fixtures were allowed. Installation fixtures now cover discovery from shared startup registration and a real synthetic Windows shortcut, duplicate references, portable adoption in place, pre-managed setup receipts, custom saved-data preservation, multiple-copy refusal, explicit folder validation, data-path change refusal and downgrade prevention. Updates and uninstall retain saved-data/music sentinels. The fixture does not change real startup registration or launch a host/service.
 
 A read-only run of the new detector found the user's existing portable Sync installation and its original `.local-data` location. It did not install, restart, open the music database or change settings. The release workflow requires an EXE, accompanying source ZIP and checksums after both CI platforms pass. The complete source and build scripts remain public. The independent Wizard project is not included in this release; startup tests still exercise synthetic companion registrations.
 
 The staged Sync-only source built a 283,648-byte EXE and passed its embedded-payload verification without installation. An off-screen render confirmed that the install/update button, folder picker and automatic-attachment option fit the setup window. All 80 staged public source paths passed the private-path/credential-marker review. The exported standalone startup fixture passed outside the sandbox after its first run encountered a sandbox temporary-file rename restriction; no live registration was used.
+
+The initial v0.11.0 tag published no release assets: its Windows CI run passed 170 tests, skipped eight unavailable audio checks and failed the managed-uninstall fixture's temporary-path identity check. The fixture now resolves the temporary directory to its canonical path, matching the production requirement; no installation or uninstall guard was relaxed. The corrected release uses v0.11.1 rather than replacing the failed tag.
 
 The EXE remains unsigned. Clean-machine internet installation, a full Windows sign-in and uninstall through actual Windows Installed apps remain untested. The live installation has not been updated by this release work.
 

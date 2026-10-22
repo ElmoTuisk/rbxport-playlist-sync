@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.11.0 — 2026-10-23
+## 0.11.1 — 2026-10-23
 
-Download **playlist-sync-0.11.0-windows-setup.exe** to install or update. Stop Playlist Sync first. Source code and SHA-256 checksums remain available alongside every release; the EXE is unsigned.
+Download **playlist-sync-0.11.1-windows-setup.exe** to install or update. Stop Playlist Sync first. Source code and SHA-256 checksums remain available alongside every release; the EXE is unsigned.
 
 - Add a single Windows setup executable with an embedded, checksum-checked source payload, automatic extraction and verified dependency installation. Offer automatic attachment to regular rbxport launches in the setup window; retain the source ZIP for development.
 - Add managed installation receipts, Windows Installed apps registration and a confirmed **Uninstall Playlist Sync** action in the existing popup settings. Refuse uninstall during sync, shut down only the add-on, preserve companion startup registrations, and remove only unchanged owned program files. Music, library entries, saved settings and unrecognized/edited files are retained.

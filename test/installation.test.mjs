@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -9,7 +9,9 @@ import { Installation } from '../src/installation.mjs';
 import { run } from '../src/process.mjs';
 
 test('uninstall is available only for a matching managed installation and launches a fixed helper',async t=>{
- const root=await mkdtemp(join(tmpdir(),'sync-installation-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ // Windows CI may expose its temporary directory through a short path or junction.
+ // The fixture represents a real installed folder, which must use its canonical path.
+ const root=await realpath(await mkdtemp(join(tmpdir(),'sync-installation-')));t.after(()=>rm(root,{recursive:true,force:true}));
  const calls=[];const launch=(...args)=>{calls.push(args);const child=new EventEmitter();child.unref=()=>{};queueMicrotask(()=>child.emit('spawn'));return child;};
  const installation=new Installation({root,platform:'win32',launch});
  assert.equal((await installation.status()).canUninstall,false);await assert.rejects(installation.uninstall(),/single-file setup/);
