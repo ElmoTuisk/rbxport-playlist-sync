@@ -2,7 +2,7 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental v0.11.1 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.11.2 · Tested with rbxport 1.9.0**
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,20 +19,20 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-0.11.1-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
-3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Stop Playlist Sync first if it is running.
-4. Open rbxport normally with the default automatic-attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
+2. Download **`playlist-sync-0.11.2-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
+4. Open rbxport from its Start Menu or Desktop shortcut with the default attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
 
-To load the add-on when you open regular rbxport, run **Configure-Rbxport-Startup.ps1** from its installed folder (right-click → Run with PowerShell). This starts its background service, adds a Windows sign-in entry and enables the local connection for future rbxport launches. Run it once for each add-on you want enabled; Playlist Sync and Playlist Wizard remain independent. Allow up to 20 seconds for the sidebar buttons to attach. Use the compatible rbxport 1.9.0 installation; the older Store 0.19.3 build lacks the required library API. Without this optional setup, use the Playlist Sync shortcut.
+The default setup connects your standard per-user **rbxport** Start Menu and Desktop shortcuts to Playlist Sync. Opening either starts both; closing rbxport cancels any current Sync work and shuts its service down. There is no separate Stop shortcut or Sync service at Windows sign-in. Use `Configure-Rbxport-Startup.ps1` to enable this later. Customized shortcuts are left untouched. Direct executable launches and the older Store entry bypass these shortcuts; use the compatible rbxport 1.9.0 shortcut or Playlist Sync shortcut.
 
 ### Install, update and uninstall
 
 Every release provides one **`playlist-sync-<version>-windows-setup.exe`**. Extraction, the private runtime and checksum-verified audio tools are handled automatically. Internet and an existing compatible rbxport installation are required. Administrator access is not required.
 
-For an update, stop the running Playlist Sync copy first. Setup finds the existing copy through its registration, shortcuts or standard installation folder, updates it in place and retains its saved-data location. For an unregistered portable copy, use **Choose existing folder**. Multiple detected copies require that choice. Setup refuses a running copy before changing files.
+For an update, close rbxport and run the new EXE. Setup finds the existing copy through registration, shortcuts or the standard folder, updates it in place and retains its saved-data location. It stops an idle service belonging to that installation, including older versions. Active work and unrelated running copies block the update. For an unregistered portable copy, use **Choose existing folder**. Multiple detected copies require that choice.
 
-**Show Playlist Sync when rbxport opens** is checked by default. It starts this add-on in the background and registers its own Windows sign-in shortcut. Close and reopen rbxport once after installation if necessary. The add-on remains separate from the host executable.
+**Show Playlist Sync when rbxport opens** is checked by default. It configures the standard rbxport shortcuts and removes the older Sync login entry. Disabling integration or uninstalling restores unchanged original shortcuts. Playlist Wizard retains its own registration and behavior; the host executable is unchanged. The installer’s **Cancel**, Escape and window close button request cancellation; if file installation has begun, setup finishes that step safely before closing.
 
 Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through the EXE adds this uninstall option.
 

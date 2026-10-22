@@ -14,16 +14,18 @@ import { oauthPage } from './oauth-page.mjs';
 import { Soulseek } from './soulseek.mjs';
 import { SpotisaverBrowser } from './spotisaver-browser.mjs';
 import { Installation } from './installation.mjs';
+import { watchHostProcess } from './host-lifetime.mjs';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
-export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null, bridgeClient = null, spotisaverBrowser = null, automaticSync = true, installationClient = null } = {}) {
+export async function startServer({ port = 43821, dataDir = join(homedir(), '.rbxport-playlist-sync'), demo = false, spotifyClient = null, bridgeClient = null, spotisaverBrowser = null, automaticSync = true, installationClient = null, hostPid = null, watchHost = watchHostProcess } = {}) {
+  if(hostPid!==null && (!Number.isSafeInteger(hostPid)||hostPid<=0))throw Error('Invalid rbxport process ID');
   await mkdir(dataDir, { recursive: true });
   const token = randomBytes(32).toString('hex');
   const store = new Store(join(dataDir, demo ? 'demo.sqlite' : 'sync.sqlite'));
   if (!store.get('settings', 'main')) store.put('settings', 'main', firstRunSettings(dataDir));
   let revision = 1; const listeners = new Set();
   let runningSync = null, hostTimer = null, hostTask = null, shuttingDown = false, selected = null, selectionRevision = 0, hostInfo = null, closeTask = null;
-  let connectionError = '', uninstalling = false;
+  let connectionError = '', uninstalling = false, stopHostWatch = null;
   const installation = installationClient || new Installation();
   const installationStatus = demo ? {canUninstall:false} : await installation.status();
   const changed = () => { revision++; for (const wake of [...listeners]) wake(); clearTimeout(hostTimer); if (!demo && !shuttingDown) hostTimer = setTimeout(() => { void syncHost().catch(() => {}); }, 150); };
@@ -42,7 +44,7 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   engine.automaticEnabled = automaticSync;
   if (demo) seedDemo(store);
   const css = await readFile(join(publicDir, 'style.css'), 'utf8');
-  const state = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active,
+  const state = () => ({ revision, demo, hostPid, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active,
     links: store.all('links'), jobs: store.all('jobs').slice(-150).reverse(), runs: store.all('runs').slice(-50).reverse(), settings: engine.settings(),
     counts: store.all('rows').filter(r => r.present).reduce((out, row) => { out[row.status] = (out[row.status] || 0) + 1; return out; }, {}) });
   const panelModel = () => ({ revision, demo, connected: bridge.connected && bridge.libraryReady, connectionError, automaticPaused: !automaticSync, active: engine.active, selected, selectionRevision, installation:installationStatus,
@@ -222,7 +224,10 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
       if (req.method === 'GET' && url.pathname === '/api/info') return json(demo ? { libraryId: 'demo', playlists: [{ id: '1', name: 'Late night selections' }] } : await bridge.call('info'));
       if (req.method === 'GET' && url.pathname === '/api/health') return json(await downloads.health());
       if (demo) return json({ error: 'Preview data only. Start without --demo to connect accounts and sync.' }, 409);
-      if (req.method === 'POST' && url.pathname === '/api/shutdown') { json({ ok: true }); setImmediate(() => { void close(); }); return; }
+      if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+        if(body.ifIdle===true && engine.active)return json({error:'Finish or cancel the current sync before updating.'},409);
+        shuttingDown=true; engine.close(); json({ ok: true }); setImmediate(() => { void close(); }); return;
+      }
       if (req.method === 'POST' && url.pathname === '/api/ui/open') { const result = await syncHost(true); if (!result) throw Error('Connecting to rbxport; try again in a moment.'); return json(result); }
       if (req.method === 'POST' && url.pathname === '/api/bridge/connect') return json(await action('connect'));
       if (req.method === 'PATCH' && url.pathname === '/api/settings') return json(engine.saveSettings(body));
@@ -253,9 +258,13 @@ export async function startServer({ port = 43821, dataDir = join(homedir(), '.rb
   heartbeat?.unref();
   if (!demo) void syncHost().catch(() => {});
   engine.schedule();
+  stopHostWatch = !demo && hostPid!==null ? watchHost(hostPid,()=>{
+    // Reject outstanding host calls now; closing a vanished host must not wait for their timeout.
+    bridge.close(); void close();
+  }) : null;
   function close() {
     closeTask ??= (async () => {
-      shuttingDown = true; clearTimeout(hostTimer); clearInterval(heartbeat); engine.close();
+      shuttingDown = true; stopHostWatch?.(); clearTimeout(hostTimer); clearInterval(heartbeat); engine.close();
       await downloads.spotisaver.closeBrowser();
       await hostTask?.catch(() => {});
       if (bridge.connected) await bridge.removeHost().catch(() => {});
@@ -287,7 +296,7 @@ function seedDemo(store) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const option = name => { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; };
-  const app = await startServer({ ...(option('--data-dir') ? { dataDir: resolve(option('--data-dir')) } : {}), demo: process.argv.includes('--demo'), automaticSync: !process.argv.includes('--pause-automatic') });
+  const app = await startServer({ ...(option('--data-dir') ? { dataDir: resolve(option('--data-dir')) } : {}), ...(option('--host-pid') ? {hostPid:Number(option('--host-pid'))} : {}), demo: process.argv.includes('--demo'), automaticSync: !process.argv.includes('--pause-automatic') });
   console.log(`Playlist Sync running on http://127.0.0.1:43821. Open the URL in ${join(option('--data-dir') || join(homedir(), '.rbxport-playlist-sync'), 'launch-url.txt')}`);
   for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { void app.close().then(() => process.exit(0)); });
 }

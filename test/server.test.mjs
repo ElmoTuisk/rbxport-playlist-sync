@@ -5,6 +5,34 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../src/server.mjs';
 import { request } from 'node:http';
+import { once } from 'node:events';
+import { Store } from '../src/store.mjs';
+
+test('closing the owning host cancels active work, stops the service and retains saved links',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-sync-host-lifetime-'));let hostExited,disposed=0,aborted=false,closed=false;
+ const calls=[];
+ const bridge={connected:false,async connect(){this.connected=true;},async call(method){calls.push(method);assert.equal(method,'info');return {libraryId:'fixture',playlists:[{id:'target'}]};},async updateHost(){return {ready:true};},async removeHost(){},close(){closed=true;this.connected=false;}};
+ const app=await startServer({port:0,dataDir:dir,automaticSync:false,bridgeClient:bridge,hostPid:456,watchHost:(pid,callback)=>{assert.equal(pid,456);hostExited=callback;return ()=>disposed++;}});
+ t.after(async()=>{app.engine.active=null;await app.close();await rm(dir,{recursive:true,force:true});});
+ const link={id:'saved',libraryId:'fixture',playlistId:'target',automatic:false};app.store.put('links','saved',link);
+ app.engine.active='synthetic-work';app.engine.controller=new AbortController();
+ app.engine.controller.signal.addEventListener('abort',()=>{aborted=true;app.engine.active=null;});
+ const stopped=once(app.server,'close');hostExited();await stopped;await app.close();
+ assert(aborted&&closed);assert.equal(disposed,1);assert.equal(app.server.listening,false);
+ const saved=new Store(join(dir,'sync.sqlite'));try{assert.deepEqual(saved.get('links','saved'),link);}finally{saved.close();}
+ assert(calls.every(method=>method==='info'));
+});
+
+test('idle-only installer shutdown refuses active work and prevents new work once accepted',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'playlist-sync-idle-stop-'));
+ const bridge={connected:false,async connect(){throw Error('No live host');},close(){}};
+ const app=await startServer({port:0,dataDir:dir,automaticSync:false,bridgeClient:bridge});
+ t.after(async()=>{app.engine.active=null;await app.close();await rm(dir,{recursive:true,force:true});});
+ const base=new URL(app.url).origin,headers={Authorization:`Bearer ${app.token}`,'Content-Type':'application/json'};
+ const shutdown=()=>fetch(base+'/api/shutdown',{method:'POST',headers,body:JSON.stringify({ifIdle:true})});
+ app.engine.active='fixture';assert.equal((await shutdown()).status,409);assert.equal(app.engine.closed,undefined);app.engine.active=null;
+ const stopped=once(app.server,'close');assert.equal((await shutdown()).status,200);await stopped;assert.equal(app.engine.closed,true);
+});
 
 test('paired uninstall requires confirmation and an idle service, then closes only the add-on',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'playlist-sync-uninstall-api-'));let launches=0,removed=0;

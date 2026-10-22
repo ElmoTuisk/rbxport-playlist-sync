@@ -85,3 +85,8 @@ function Test-PlaylistSyncServiceListening {
         return ($pending.Wait(500) -and $client.Connected)
     } catch { return $false } finally { $client.Dispose() }
 }
+function Get-PlaylistSyncHostProcess([string]$Executable) {
+    $matches = @(Get-Process -Name rbxport -ErrorAction SilentlyContinue | Where-Object { $_.Path -and [IO.Path]::GetFullPath($_.Path) -eq [IO.Path]::GetFullPath($Executable) })
+    if ($matches.Count -gt 1) { throw 'More than one compatible rbxport process is running. Close the extra copy before opening Playlist Sync.' }
+    if ($matches.Count -eq 1) { return $matches[0] }
+}

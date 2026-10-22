@@ -1,5 +1,15 @@
 # Validation record
 
+## Session shutdown and installer closure — 23 October 2026
+
+Version 0.11.2 passed **185 Windows tests**, with real FFmpeg/ffprobe and DPAPI and no skips (16.88 seconds). External fetches were blocked while loopback fixtures were allowed. A real synthetic child process verifies process-exit detection. Service fixtures verify cancellation, HTTP shutdown, saved-link preservation and the atomic idle-only update guard. Windows shortcut fixtures cover coupled launch, no service with a closed host, a quick host reopen, original-byte restoration, retention of user-modified links and independent companion registration.
+
+The installer regression compiles the production C# code and runs a synthetic setup process whose child retains its redirected output pipe. Setup returns while that child is still alive. Cooperative cancellation and busy/finished form-close behavior also pass. PowerShell fixtures cover cancellation before installation, refusal of active/connected/unrelated services, idle service shutdown and install/update/uninstall with saved-data and music sentinels preserved. No real host, library or download provider is used by these fixtures.
+
+The user's completed 0.11.1 installer remained open with no setup child process. Closing its window was blocked by its running flag; waiting for inherited output-pipe EOF explains the hang. Only that completed installer process was closed. The new executable follows the setup process and a private status file. Its cancellation finishes an already-started file-install phase before closing. A real rbxport close/reopen cycle using the new lifecycle, fresh-machine internet setup and full Windows sign-in remain untested.
+
+The reviewed Sync-only export built a 295,424-byte EXE and passed embedded-payload verification. All 86 staged public paths passed the private-path/credential-marker check. With rbxport closed, the same installer source updated the user's idle 0.11.1 copy in place using checksum-verified cached dependencies. The paired API shut down only that Sync process. Version 0.11.2 and the original saved-data path were verified afterward. Both standard rbxport shortcuts use the session launcher, the old Sync login/Stop entries are gone, and no Sync service or host was left running. The companion process and its startup shortcut remained unchanged. No music or host library operation was requested.
+
 ## EXE updates and release 0.11.1 — 23 October 2026
 
 All **179 Windows tests passed**, with real FFmpeg/ffprobe and DPAPI and no skips (23.11 seconds). External fetches were blocked while loopback fixtures were allowed. Installation fixtures now cover discovery from shared startup registration and a real synthetic Windows shortcut, duplicate references, portable adoption in place, pre-managed setup receipts, custom saved-data preservation, multiple-copy refusal, explicit folder validation, data-path change refusal and downgrade prevention. Updates and uninstall retain saved-data/music sentinels. The fixture does not change real startup registration or launch a host/service.

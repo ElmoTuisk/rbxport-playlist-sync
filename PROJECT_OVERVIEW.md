@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 23 October 2026. Current release: **v0.11.1**, experimental Windows x64 add-on for rbxport.
+Updated 23 October 2026. Current release: **v0.11.2**, experimental Windows x64 add-on for rbxport.
 
 [Quick start](README.md) · [Detailed usage](docs/usage.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -30,7 +30,7 @@ The reliability target is approximately 95% automatic completion across varied p
 
 This is an independent add-on, not an official rbxport plugin loaded by a permanent extension API. A Node.js 24 service connects to rbxport's opt-in local WebView automation port and uses guarded existing commands. It injects the sidebar button and popup into the running window. It does not edit the host executable or open/write the music database directly.
 
-The Playlist Sync shortcut starts the host with its connection enabled. Optional `Configure-Rbxport-Startup.ps1` registers this add-on's hidden background launcher at Windows sign-in and sets the current user's `RBXPORT_DEVTOOLS_PORT=43822`. Compatible rbxport can then be opened normally and both independently enabled add-ons attach within a heartbeat (up to 20 seconds). Setup starts no host window at sign-in. Disabling one registration preserves the other; disabling the last restores the previous port unless another setting has replaced it. There is no automatic updater. The service's temporary UI is removed/expired after it stops, so stale badges cannot claim a playlist is synced.
+The Playlist Sync shortcut starts the host with its connection enabled. Optional `Configure-Rbxport-Startup.ps1` connects standard per-user rbxport Start Menu/Desktop shortcuts to the same launcher and sets `RBXPORT_DEVTOOLS_PORT=43822`. Sync follows the selected rbxport process ID, cancels active work and shuts down when it exits. WebView reloads do not count as exit. Sync no longer runs at Windows sign-in. Disabling integration restores unchanged original shortcuts and preserves companion registration; disabling the last registration restores the previous port unless independently changed. Direct executable and older Store launches bypass the wrapper. There is no automatic updater.
 
 **Compatibility:** Windows rbxport 1.9.0 is the tested host. Store build 0.19.3 lacks the required `database_drives` library-identity command. v0.10.2 excludes that older package from automatic selection and verifies an attached, visible sidebar button before reporting launch success. Later builds still need compatibility checks; version-based discovery alone is not proof of compatibility.
 
@@ -72,7 +72,7 @@ The Windows setup executable (`Build-Installer.ps1`) is the main download for ev
 
 This release includes an optional Spotisaver connection with first-source or last-resort selection and strict 320 kbps MP3 validation. Last resort follows ordinary web sources and enabled Soulseek, retaining earlier attempts and explicit source choices. Verify Spotisaver opens a dedicated Edge/Chrome session and retains site cookies there. Three selected live recordings passed acquisition and audio checks through that browser after direct HTTP requests were challenged. Upstream audio quality stays unverified; see [connection evidence](docs/spotisaver.md). This does not establish a general acquisition or completion target.
 
-1. Continue testing startup/sidebar behavior across additional host versions and Windows sign-in. A regular Explorer launch of rbxport 1.9.0 was verified with both independent sidebar buttons; a full sign-out/sign-in was not performed.
+1. Continue testing session shutdown and shortcut launches across host versions. The 0.11.2 lifecycle uses synthetic-process, service and Windows shortcut fixtures; its real host close/reopen cycle remains to be verified.
 2. Finish representative full acquisition runs and record denominators, actual source quality, retries, quality holds and completion time. Establish evidence before making a 95% claim.
 3. Improve compatibility diagnostics and investigate additional host versions without guessing the open library or weakening identity guards.
 4. Improve update cleanup: matching installed files are overwritten today, but obsolete program files are not removed automatically. Preserve saved data and music.

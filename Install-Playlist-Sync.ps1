@@ -4,17 +4,27 @@ param(
     [string]$CacheDirectory = (Join-Path $PSScriptRoot '.install-cache'),
     [string]$ShortcutRoot,
     [string]$ExistingDirectory,
+    [string]$StatusFile,
+    [string]$CancellationFile,
     [switch]$NoShortcuts,
     [switch]$NoLaunch,
     [switch]$StartWithRbxport,
     [switch]$NoRegistry
 )
 $ErrorActionPreference = 'Stop'
+function Set-SetupStatus([string]$State,[string]$Message) {
+    if($StatusFile) { [IO.File]::WriteAllText($StatusFile,($State+"`n"+$Message),(New-Object Text.UTF8Encoding($false))) }
+    Write-Host $Message
+}
+function Test-SetupCancellation {
+    if($CancellationFile -and (Test-Path -LiteralPath $CancellationFile)) { throw [OperationCanceledException]::new('Setup cancelled. Your existing installation and saved data were kept.') }
+}
+try {
+Test-SetupCancellation
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 . (Join-Path $PSScriptRoot 'scripts\Desktop.ps1')
 . (Join-Path $PSScriptRoot 'scripts\Installation.ps1')
-if (Test-PlaylistSyncServiceListening) { throw 'Stop the running Playlist Sync copy before installing or updating. Your current files and saved data have not been changed.' }
 $version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'package.json') -Raw | ConvertFrom-Json).version
 $selection = @{DefaultRoot=$InstallDirectory;DefaultData=$DataDirectory}
 if ($ExistingDirectory) { $selection.ExplicitRoot=$ExistingDirectory; $selection.RequireExisting=$true }
@@ -25,6 +35,7 @@ $selected = Resolve-PlaylistSyncInstall @selection
 $InstallDirectory = $selected.root
 $DataDirectory = $selected.dataDirectory
 if ($selected.version -and [Version]$selected.version -gt [Version]$version) { throw 'A newer Playlist Sync version is already installed. Download the latest setup to update it.' }
+Stop-PlaylistSyncForUpdate $InstallDirectory $DataDirectory
 if ($selected.version) { Write-Host "Updating Playlist Sync $($selected.version) in $InstallDirectory. Keeping the existing saved-data folder." }
 if (-not [Environment]::Is64BitOperatingSystem -or $env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { throw 'This installer supports Windows x64. ARM64 is not yet supported.' }
 $null = Find-PlaylistSyncRbxport
@@ -49,18 +60,29 @@ function Get-VerifiedDownload {
     $destination = Join-Path $CacheDirectory $Filename
     if ((Test-Path -LiteralPath $destination) -and (Get-PlaylistSyncFileHash $destination) -eq $Hash) { return $destination }
     $temporary = "$destination.partial"
-    Write-Host "Downloading $Filename ..."
+    Test-SetupCancellation
+    Set-SetupStatus 'working' "Downloading $Filename ..."
     $client = New-Object Net.WebClient
-    try { $client.DownloadFile($Url, $temporary) } finally { $client.Dispose() }
+    try {
+        $download=$client.DownloadFileTaskAsync($Url,$temporary)
+        $deadline=[DateTime]::UtcNow.AddMinutes(10)
+        while(-not $download.IsCompleted) {
+            if($CancellationFile -and (Test-Path -LiteralPath $CancellationFile)) { $client.CancelAsync(); Test-SetupCancellation }
+            if([DateTime]::UtcNow -gt $deadline) { $client.CancelAsync(); throw 'Download timed out. Check your connection and retry setup.' }
+            Start-Sleep -Milliseconds 100
+        }
+        $download.GetAwaiter().GetResult()
+    } finally { $client.Dispose() }
     if ((Get-PlaylistSyncFileHash $temporary) -ne $Hash) { throw "Checksum verification failed for $Filename. Nothing from this download will be executed." }
     Move-Item -LiteralPath $temporary -Destination $destination -Force
     return $destination
 }
-Write-Host "Installing Playlist Sync $version for your Windows account. Administrator access is not required."
+Set-SetupStatus 'working' "Preparing Playlist Sync $version ..."
 $nodeDownload = Get-VerifiedDownload $manifest.node.url $manifest.node.sha256 'node.exe'
 $ytdlpDownload = Get-VerifiedDownload $manifest.ytdlp.url $manifest.ytdlp.sha256 'yt-dlp.exe'
 $ffmpegDownload = Get-VerifiedDownload $manifest.ffmpeg.url $manifest.ffmpeg.sha256 'ffmpeg-essentials.zip'
-Write-Host 'All downloads verified. Preparing the app and audio tools ...'
+Test-SetupCancellation
+Set-SetupStatus 'installing' 'Installing verified files. Closing setup will finish this step safely.'
 $runtime = Join-Path $InstallDirectory '.runtime'
 $tools = Join-Path $runtime 'tools'
 $include = @('src', 'public', 'scripts', 'docs', 'README.md', 'PROJECT_OVERVIEW.md', 'AGENTS.md', 'CHANGELOG.md', 'LICENSE', 'package.json', 'manifest.json', 'dependencies.json', 'Start-Playlist-Sync.ps1', 'Stop-Playlist-Sync.ps1', 'Launch-Playlist-Sync.cmd', 'Configure-Rbxport-Startup.ps1', 'Uninstall-Playlist-Sync.ps1')
@@ -116,16 +138,21 @@ if (-not $NoShortcuts) {
         $shortcut.Save()
         $ownedShortcuts += $shortcutPath
     }
-    $stop = $shell.CreateShortcut((Join-Path $menuDirectory 'Stop Playlist Sync.lnk'))
-    $stop.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $stop.Arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $InstallDirectory 'Stop-Playlist-Sync.ps1') + '"'
-    $stop.WorkingDirectory = $InstallDirectory
-    $stop.Save()
-    $ownedShortcuts += (Join-Path $menuDirectory 'Stop Playlist Sync.lnk')
+    $stopPath=Join-Path $menuDirectory 'Stop Playlist Sync.lnk'
+    if(Test-Path -LiteralPath $stopPath) {
+        $stop=$shell.CreateShortcut($stopPath)
+        if($stop.Arguments.Contains('"'+(Join-Path $InstallDirectory 'Stop-Playlist-Sync.ps1')+'"')) { Remove-Item -LiteralPath $stopPath }
+    }
 }
 Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDirectory -Version $version -Files $ownedFiles -Shortcuts $ownedShortcuts -NoRegistry:$NoRegistry
 Write-Host "Installed successfully in $InstallDirectory. Open the Playlist Sync shortcut whenever you need it."
 if ($StartWithRbxport) { & (Join-Path $InstallDirectory 'Configure-Rbxport-Startup.ps1') }
 if (-not $NoLaunch) {
     Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1') + '"'))
+}
+Set-SetupStatus 'complete' 'Installed. Playlist Sync will start and close with rbxport.'
+} catch {
+    $state=if($_.Exception -is [OperationCanceledException]) { 'cancelled' } else { 'error' }
+    Set-SetupStatus $state $_.Exception.Message
+    throw
 }

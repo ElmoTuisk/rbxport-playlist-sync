@@ -35,6 +35,12 @@ try {
     $blocked=$false;try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $blockedTarget -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry } catch { $blocked=$_.Exception.Message.Contains('Stop the running Playlist Sync') }
     Assert-Install ($blocked -and -not (Test-Path -LiteralPath $blockedTarget)) 'A running copy must be refused before changing files'
     Set-Content -LiteralPath $desktopFixture -Value $desktopSaved
+    $cancelFile=Join-Path $fixture 'cancel.txt'; $statusFile=Join-Path $fixture 'status.txt'
+    Set-Content -LiteralPath $cancelFile 'cancel'
+    $cancelled=$false
+    try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $blockedTarget -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry -CancellationFile $cancelFile -StatusFile $statusFile } catch { $cancelled=$_.Exception -is [OperationCanceledException] }
+    Assert-Install ($cancelled -and -not (Test-Path -LiteralPath $blockedTarget)) 'Cancelling before setup must leave the existing installation untouched'
+    Assert-Install ((Get-Content -LiteralPath $statusFile -Raw).StartsWith('cancelled')) 'Cancellation must be reported without a raw PowerShell stack'
     & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
     $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
     Assert-Install ($record.product -eq 'rbxport-playlist-sync' -and $record.files.Count -gt 10) 'Installation receipt missing'
@@ -101,6 +107,31 @@ try {
     Assert-Install (Test-Path -LiteralPath (Join-Path $target 'src\fixture.txt')) 'Modified file was deleted'
     Assert-Install (Test-Path -LiteralPath (Join-Path $target 'Music\keep.mp3')) 'Music was deleted'
     Assert-Install ((Get-Content -LiteralPath (Join-Path $data 'sync.sqlite') -Raw).Trim() -eq 'saved playlist settings') 'Saved settings were changed'
+    # Idle update shutdown is paired and restricted to this exact installation.
+    Set-Content -LiteralPath (Join-Path $data 'service.pid') '123456'
+    Set-Content -LiteralPath (Join-Path $data 'launch-url.txt') ('http://127.0.0.1:43821/#'+('a'*64))
+    $script:fixtureListening=$true;$script:fixtureActive=$true;$script:fixtureConnected=$false;$script:shutdowns=0;$script:wrongProcess=$false
+    function Test-PlaylistSyncServiceListening { return $script:fixtureListening }
+    function Get-CimInstance { param($ClassName,$Filter); return @{Name=$(if($script:wrongProcess){'other.exe'}else{'node.exe'});CommandLine=('node.exe "'+(Join-Path $target 'src\server.mjs')+'"')} }
+    function Get-Process { param($Id,$ErrorAction); return $null }
+    function Invoke-RestMethod {
+        param($Uri,$Headers,$Method,$ContentType,$Body,$TimeoutSec)
+        Assert-Install ($Headers.Authorization -eq ('Bearer '+('a'*64))) 'Shutdown must use the saved local pairing'
+        if($Uri -eq 'http://127.0.0.1:43821/api/panel') {return @{active=$script:fixtureActive;connected=$script:fixtureConnected}}
+        Assert-Install ($Uri -eq 'http://127.0.0.1:43821/api/shutdown' -and ($Body | ConvertFrom-Json).ifIdle) 'Update shutdown must be idle-only'
+        $script:shutdowns++;$script:fixtureListening=$false;return @{ok=$true}
+    }
+    $blocked=$false;try{Stop-PlaylistSyncForUpdate $target $data}catch{$blocked=$_.Exception.Message.Contains('current sync')}
+    Assert-Install ($blocked -and $script:shutdowns -eq 0) 'Updating must not cancel active music work'
+    $script:fixtureActive=$false;$script:fixtureConnected=$true
+    $blocked=$false;try{Stop-PlaylistSyncForUpdate $target $data}catch{$blocked=$_.Exception.Message.Contains('Close rbxport')}
+    Assert-Install ($blocked -and $script:shutdowns -eq 0) 'Setup must ask for rbxport to close'
+    $script:fixtureConnected=$false;$script:wrongProcess=$true
+    $blocked=$false;try{Stop-PlaylistSyncForUpdate $target $data}catch{$blocked=$true}
+    Assert-Install ($blocked -and $script:shutdowns -eq 0) 'Setup must not stop an unrelated process'
+    $script:wrongProcess=$false
+    Stop-PlaylistSyncForUpdate $target $data
+    Assert-Install ($script:shutdowns -eq 1 -and -not $script:fixtureListening) 'Idle installed copy must stop automatically for the update'
     Write-Output 'Managed installation checks passed'
 } finally {
     $full = [IO.Path]::GetFullPath($fixture)

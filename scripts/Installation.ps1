@@ -1,4 +1,26 @@
 # Managed installation records contain only program files, never saved data or music.
+function Stop-PlaylistSyncForUpdate([string]$Root,[string]$DataDirectory) {
+    if(-not (Test-PlaylistSyncServiceListening)) { return }
+    $pidPath=Join-Path $DataDirectory 'service.pid'
+    $launchPath=Join-Path $DataDirectory 'launch-url.txt'
+    if(-not (Test-Path -LiteralPath $pidPath) -or -not (Test-Path -LiteralPath $launchPath)) { throw 'Stop the running Playlist Sync copy before updating: it does not belong to the selected installation. No files have been changed.' }
+    $serviceId=[int](Get-Content -LiteralPath $pidPath -Raw)
+    $service=Get-CimInstance Win32_Process -Filter "ProcessId=$serviceId"
+    $entry=(Join-Path $Root 'src\server.mjs').Replace('/','\')
+    if(-not $service -or $service.Name -ne 'node.exe' -or -not $service.CommandLine -or $service.CommandLine.Replace('/','\').IndexOf(('"'+$entry+'"'),[StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'The running process does not belong to this Playlist Sync copy. No files have been changed.' }
+    $launch=(Get-Content -LiteralPath $launchPath -Raw).Trim()
+    if($launch -notmatch '^http://127\.0\.0\.1:43821/#([a-f0-9]{64})$') { throw 'Cannot safely connect to the installed copy. No files have been changed.' }
+    $headers=@{Authorization=('Bearer '+$Matches[1])}
+    $panel=Invoke-RestMethod -Uri 'http://127.0.0.1:43821/api/panel' -Headers $headers -TimeoutSec 5
+    if($panel.active) { throw 'Finish or cancel the current sync before updating. No files have been changed.' }
+    if($panel.connected) { throw 'Close rbxport before updating. Setup will stop Playlist Sync for you.' }
+    $null=Invoke-RestMethod -Uri 'http://127.0.0.1:43821/api/shutdown' -Method Post -Headers $headers -ContentType 'application/json' -Body '{"ifIdle":true}' -TimeoutSec 5
+    for($attempt=0;$attempt -lt 40;$attempt++) {
+        if(-not (Get-Process -Id $serviceId -ErrorAction SilentlyContinue) -and -not (Test-PlaylistSyncServiceListening)) { return }
+        Start-Sleep -Milliseconds 250
+    }
+    throw 'Playlist Sync is still finishing its shutdown. Wait a moment, then retry. No files have been changed.'
+}
 function Get-PlaylistSyncExistingInstall([string]$Root) {
     if (-not $Root -or -not [IO.Path]::IsPathRooted($Root)) { throw 'Invalid existing installation folder.' }
     $full = (Assert-PlaylistSyncPlainPath $Root).TrimEnd('\','/')

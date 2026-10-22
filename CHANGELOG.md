@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2 — 2026-10-23
+
+Download **playlist-sync-0.11.2-windows-setup.exe** to update your existing copy. Close rbxport first; setup handles an idle older Sync service. Source and checksums remain public.
+
+- Start Playlist Sync from the standard rbxport Start Menu/Desktop shortcuts and stop it when that rbxport process exits. Cancel in-progress work, retain saved state, and tolerate sidebar reloads and quick host restarts. Remove the separate Stop shortcut and older Sync login entry; preserve Playlist Wizard registration. Restore unchanged original shortcuts when integration is disabled or uninstalled.
+- Fix the installer remaining open after successful setup because a background service inherited its output pipes. Follow the setup process directly, display concise errors, and make Cancel, Escape and window close request safe cancellation. Finish any file-install phase already in progress before closing.
+- Update the selected copy in place after safely shutting down its idle disconnected service. Refuse active work and unrelated processes; retain music, settings and the existing data location. Direct executable launches, custom shortcuts and the older unsupported Store entry do not use the standard shortcut integration.
+
 ## 0.11.1 — 2026-10-23
 
 Download **playlist-sync-0.11.1-windows-setup.exe** to install or update. Stop Playlist Sync first. Source code and SHA-256 checksums remain available alongside every release; the EXE is unsigned.

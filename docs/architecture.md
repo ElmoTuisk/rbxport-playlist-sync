@@ -1,5 +1,11 @@
 # Architecture and maintenance notes
 
+## Desktop session lifetime in 0.11.2
+
+The launcher finds the exact compatible rbxport executable and passes its process ID to the service. The service watches that PID independently of the WebView connection; confirmed exit rejects pending host calls, cancels acquisition, closes the browser relay and HTTP server, and flushes saved state. A quick host reopen waits for the prior service to exit before starting another. Standard per-user shortcuts are wrapped with original-byte backups and hashes; disable/uninstall restores only unchanged owned links. No host binary or music database is modified.
+
+Setup follows its PowerShell process exit and a private status file, avoiding inherited output-pipe waits. Cancel requests are cooperative before file installation; the short file-install phase finishes safely. Updates use the paired API to stop only the matching idle, disconnected service, with a server-side idle guard and no force kill.
+
 ## Bulk approval and target removal in 0.9.0
 
 Bulk quality previews use stored, already discovered options; they do not run searches or acquire audio. Eligibility requires an unresolved non-match row, no existing approval/file/binding, a known positive bitrate, a supported codec and matching recording length. Preview formats and cancelled jobs are excluded. The plan chooses the highest bitrate, then verified metadata on ties, with stable option-ID ordering. A SHA-256 signature covers the current library, source snapshot and exact choices. Confirmation holds the operation lock, verifies library identity and regenerates the plan before transactionally saving every per-song source/format approval. The server starts a single serial operation over only those row IDs, using the existing verification/import pipeline and one final guarded reorder. A changed actual quality still holds that particular song for fresh confirmation.

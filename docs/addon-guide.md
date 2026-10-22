@@ -4,7 +4,7 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.11.1, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.11.2, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 New downloads include album artwork automatically: exact Spotify album images or SoundCloud track artwork, with an existing attached cover as fallback. Missing/broken artwork does not discard verified audio. MP3/AAC audio stays packet-preserved; no existing collection files are rewritten. Provider image downloads are limited to known HTTPS CDNs, 5 MiB per image and 15 seconds, with at most 8 MiB/32 entries cached. Images are normalized to a compatible JPEG attachment of at most 1200 pixels per side. See the README for the full behavior.
 
@@ -13,14 +13,14 @@ Source discovery checks ten initial results per SoundCloud/YouTube query, retain
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.11.1-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
-3. Stop Playlist Sync if running, open the EXE and click **Install / Update**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
-4. With the default automatic-attachment option, open compatible rbxport normally. Close and reopen it once if needed. Otherwise use the **Playlist Sync** shortcut.
+2. Download `playlist-sync-0.11.2-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+3. Close rbxport, open the EXE and click **Install / Update**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
+4. With the default automatic-attachment option, open compatible rbxport from its standard Start Menu or Desktop shortcut. Otherwise use the **Playlist Sync** shortcut.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
 
-Setup finds registered installations and preserves their data. Choose an existing folder for an unregistered portable copy. Automatic attachment registers a hidden service at Windows sign-in; it does not open a host window.
+Setup finds registered installations and preserves their data. Choose an existing folder for an unregistered portable copy. Automatic attachment configures the standard per-user rbxport shortcuts; Sync starts and stops with that host session. Setup stops an idle older service safely. Cancel or close setup to request cancellation; an already-started file installation finishes before the window closes.
 
-The panel closes with ×, Escape or a click outside it. Background sync continues while the service and rbxport are running. Use **Start Menu → Playlist Sync → Stop Playlist Sync** to stop it completely. Restart rbxport normally to turn off its local automation port.
+The panel closes with ×, Escape or a click outside it. Background sync continues while the service and rbxport are running. Close rbxport to cancel current work and stop Sync completely. No separate Stop shortcut is needed. Disabling integration restores unchanged original shortcuts and preserves companion registration.
 
 ## The playlist symbol
 

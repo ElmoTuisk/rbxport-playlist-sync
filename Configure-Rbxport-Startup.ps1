@@ -8,4 +8,4 @@ if (-not $NoStart) {
     $launcher = if ($name -eq 'rbxport-playlist-sync-addon') { 'Start-Playlist-Sync.ps1' } else { 'Start-Playlist-Wizard.ps1' }
     & (Join-Path $PSScriptRoot $launcher) -Background -NoWindow -PauseAutomatic:$PauseAutomatic
 }
-Write-Output 'Automatic attachment enabled. Open compatible rbxport normally; this add-on also starts in the background at Windows sign-in.'
+Write-Output 'rbxport shortcuts are configured. Playlist Sync starts and closes with rbxport.'

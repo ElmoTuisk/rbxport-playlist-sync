@@ -22,7 +22,10 @@ function Set-RbxportAddonStartup {
         [Parameter(Mandatory=$true)][string]$Root,
         [switch]$Disable,
         [string]$StartupDirectory = [Environment]::GetFolderPath('Startup'),
-        [string]$StateDirectory = (Join-Path $env:LOCALAPPDATA 'rbxport-addons')
+        [string]$StateDirectory = (Join-Path $env:LOCALAPPDATA 'rbxport-addons'),
+        [string]$ProgramsDirectory = [Environment]::GetFolderPath('Programs'),
+        [string]$DesktopDirectory = [Environment]::GetFolderPath('Desktop'),
+        [string]$RbxportPath
     )
     $packageName = (Get-Content -LiteralPath (Join-Path $Root 'package.json') -Raw | ConvertFrom-Json).name
     $addon = switch ($packageName) {
@@ -42,6 +45,11 @@ function Set-RbxportAddonStartup {
         $saved = if (Test-Path -LiteralPath $statePath) { Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json } else { $null }
         $previous = if ($saved) { $saved.previousPort } else { Get-RbxportUserPort }
         $registrations = @($saved.addons | Where-Object { $_ -and $_.id -ne $addon })
+        if(-not $Disable -and (Get-RbxportUserPort) -and (Get-RbxportUserPort) -ne '43822') { throw 'rbxport already uses another automation port. Startup was not changed.' }
+        if($addon -eq 'Playlist-Sync') {
+            . (Join-Path $PSScriptRoot 'HostShortcuts.ps1')
+            Set-PlaylistSyncHostShortcuts -Root $Root -Disable:$Disable -StateDirectory $StateDirectory -ProgramsDirectory $ProgramsDirectory -DesktopDirectory $DesktopDirectory -RbxportPath $RbxportPath
+        }
         if ($Disable) {
             if (Test-Path -LiteralPath $linkPath) { Remove-Item -LiteralPath $linkPath }
             if (-not $registrations.Count) {
@@ -53,6 +61,13 @@ function Set-RbxportAddonStartup {
         } else {
             $currentPort = Get-RbxportUserPort
             if ($currentPort -and $currentPort -ne '43822') { throw 'rbxport already uses another automation port. Startup was not changed.' }
+            if($addon -eq 'Playlist-Sync') {
+                # Replace the old always-on login service with launch-on-demand shortcuts.
+                if(Test-Path -LiteralPath $linkPath) {
+                    $oldLink=(New-Object -ComObject WScript.Shell).CreateShortcut($linkPath)
+                    if($oldLink.Arguments.Contains('"'+$startScript+'"')) { Remove-Item -LiteralPath $linkPath }
+                }
+            } else {
             New-Item -ItemType Directory -Force -Path $StartupDirectory | Out-Null
             $shell = New-Object -ComObject WScript.Shell
             $link = $shell.CreateShortcut($linkPath)
@@ -62,6 +77,7 @@ function Set-RbxportAddonStartup {
             $link.WindowStyle = 7
             $link.Description = "Attach $($addon.Replace('-', ' ')) when rbxport opens"
             $link.Save()
+            }
             $registrations += [pscustomobject]@{id=$addon;root=$Root}
         }
         New-Item -ItemType Directory -Force -Path $StateDirectory | Out-Null
