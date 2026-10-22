@@ -10,6 +10,8 @@ The staged Sync-only source built a 283,648-byte EXE and passed its embedded-pay
 
 The initial v0.11.0 tag published no release assets: its Windows CI run passed 170 tests, skipped eight unavailable audio checks and failed the managed-uninstall fixture's temporary-path identity check. The fixture now resolves the temporary directory to its canonical path, matching the production requirement; no installation or uninstall guard was relaxed. The corrected release uses v0.11.1 rather than replacing the failed tag.
 
+[v0.11.1 CI](https://github.com/ElmoTuisk/rbxport-playlist-sync/actions/runs/39855624836) passed both platforms: Windows 171 passed / eight real-audio checks skipped; Linux 175 passed / four Windows-only checks skipped. The earlier local Windows run included all audio checks with no skips, and both corrected installation tests passed locally. The release job then published the EXE, source ZIP and checksums. Downloaded assets matched both GitHub's SHA-256 digests and `SHA256SUMS.txt`; the published 284,160-byte EXE passed verification-only mode without installation. Its SHA-256 is `7f0ca326656cbd0ab2b343b3c32aec88ac5161917ab5fef53bcc84a5024ff8d5`. [Published release](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/tag/v0.11.1).
+
 The EXE remains unsigned. Clean-machine internet installation, a full Windows sign-in and uninstall through actual Windows Installed apps remain untested. The live installation has not been updated by this release work.
 
 ## Single-file Windows setup and managed uninstall — 22 October 2026
