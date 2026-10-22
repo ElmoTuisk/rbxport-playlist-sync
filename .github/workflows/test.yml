@@ -15,7 +15,12 @@ jobs:
           node-version: '24'
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - if: runner.os == 'Windows' && hashFiles('playlist-wizard/package.json') != ''
+        run: choco install ffmpeg --no-progress -y
       - run: node --test test/*.test.mjs
+      - name: Provision the independent Playlist Wizard analysis runtime
+        if: hashFiles('playlist-wizard/package.json') != ''
+        run: node playlist-wizard/scripts/Install-Essentia.mjs
       - name: Test the independent Playlist Wizard add-on
         if: hashFiles('playlist-wizard/package.json') != ''
         run: node --test playlist-wizard/test/*.test.mjs

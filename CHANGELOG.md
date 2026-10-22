@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.3 — 2026-10-23
+
+- Start both enabled add-ons through the original rbxport Desktop and Start Menu entries. Keep the host icon, one host process, independent data, and a shared launcher that survives removing either companion. Migrate the earlier Sync wrapper without losing original shortcut backups.
+- Remove conventional separate Sync/Wizard and Windows sign-in shortcuts after integration succeeds. Preserve customized commands. Restore unchanged original host shortcuts only when the last add-on is disabled.
+- Make setup's integrated launch use the shared launcher, and retain manual-launch shortcuts when integration is turned off. Add Windows fixtures for companion disable, migration, cleanup and repeated launches.
+
 ## 0.11.2 — 2026-10-23
 
 Download **playlist-sync-0.11.2-windows-setup.exe** to update your existing copy. Close rbxport first; setup handles an idle older Sync service. Source and checksums remain public.

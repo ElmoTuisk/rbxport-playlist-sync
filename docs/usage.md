@@ -7,15 +7,15 @@ Setup, playlist actions, audio policies and troubleshooting in detail.
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.11.2-windows-setup.exe`**.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.11.3-windows-setup.exe`**.
 3. Close rbxport, then open the EXE and click **Install / Update**.
 4. Setup downloads verified tools and creates shortcuts. Internet is required; administrator access and a separate Node installation are not.
 5. Leave **Show Playlist Sync when rbxport opens** checked to enable automatic attachment. Open compatible rbxport from its standard Start Menu or Desktop shortcut. Without automatic attachment, use the Playlist Sync shortcut.
 6. In rbxport, click **Playlist sync**, directly below **Tag List** on the left.
 
-For automatic attachment, run `Configure-Rbxport-Startup.ps1` from the installed add-on folder (right-click → Run with PowerShell). It connects standard per-user rbxport Start Menu/Desktop shortcuts to the session launcher and enables the local connection. Open either shortcut to start both apps; close rbxport to stop Sync, including current searches/transfers. Sync no longer starts at Windows sign-in. Setup removes its older login entry. Playlist Wizard remains independent. Installer automation can pass `-StartWithRbxport`.
+For automatic attachment, run `Configure-Rbxport-Startup.ps1` from each installed add-on folder. The original rbxport shortcuts then start both enabled add-ons through one shared launcher. Closing rbxport stops both services and cancels their current work. Conventional separate add-on and Windows sign-in shortcuts are removed. Services, saved data and pairing remain independent. Installer automation can pass `-StartWithRbxport`.
 
-To disable automatic attachment, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<installed folder>\Configure-Rbxport-Startup.ps1" -Disable`. Unchanged original rbxport shortcuts are restored; user-modified shortcuts are retained. Close rbxport to stop the current Sync session. Other add-on registrations remain enabled. Disabling the last restores the previous user connection setting. There is no automatic updater.
+To disable automatic attachment, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<installed folder>\Configure-Rbxport-Startup.ps1" -Disable`. The other enabled add-on keeps its shared launcher. Disabling the last restores unchanged original rbxport shortcuts; user-modified shortcuts are retained. Close rbxport to stop the current Sync session. Other add-on registrations remain enabled. Disabling the last restores the previous user connection setting. There is no automatic updater.
 
 Without automatic attachment, use the **Playlist Sync** Desktop or Start Menu shortcut. If rbxport is already open without its local connection, close it normally first.
 
@@ -153,4 +153,3 @@ Deleting a linked playlist in rbxport also clears its add-on link, pending entri
 For a connection-only diagnostic launch, the service accepts `node src/server.mjs --pause-automatic` (with your usual `--data-dir` if applicable). This pauses scheduled sync for that process without changing saved playlist preferences; manual Sync remains available. To resume normal scheduling, close rbxport and open its configured shortcut again. A directly launched developer service can still be stopped with `Stop-Playlist-Sync.ps1`.
 
 Settings and downloads are stored in `%LOCALAPPDATA%\rbxport-playlist-sync`. Use the gear to change the download folder. Keep this data folder, cookies and credentials private.
-

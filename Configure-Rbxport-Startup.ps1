@@ -8,4 +8,4 @@ if (-not $NoStart) {
     $launcher = if ($name -eq 'rbxport-playlist-sync-addon') { 'Start-Playlist-Sync.ps1' } else { 'Start-Playlist-Wizard.ps1' }
     & (Join-Path $PSScriptRoot $launcher) -Background -NoWindow -PauseAutomatic:$PauseAutomatic
 }
-Write-Output 'rbxport shortcuts are configured. Playlist Sync starts and closes with rbxport.'
+Write-Output 'The original rbxport shortcuts now start both enabled add-ons. Their services close with rbxport; separate add-on and sign-in shortcuts were removed.'

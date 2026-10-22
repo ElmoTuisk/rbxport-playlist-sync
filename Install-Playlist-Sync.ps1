@@ -121,7 +121,7 @@ $ownedShortcuts = @()
 Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDirectory -Version $version -Files $ownedFiles -NoRegistry:$NoRegistry
 & (Join-Path $runtime 'node.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'The private runtime did not start.' }
-if (-not $NoShortcuts) {
+if (-not $NoShortcuts -and -not $StartWithRbxport) {
     $shell = New-Object -ComObject WScript.Shell
     $menuDirectory = if ($ShortcutRoot) { Join-Path $ShortcutRoot 'Start Menu\Playlist Sync' } else { Join-Path ([Environment]::GetFolderPath('Programs')) 'Playlist Sync' }
     $desktopDirectory = if ($ShortcutRoot) { Join-Path $ShortcutRoot 'Desktop' } else { [Environment]::GetFolderPath('Desktop') }
@@ -146,9 +146,10 @@ if (-not $NoShortcuts) {
 }
 Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDirectory -Version $version -Files $ownedFiles -Shortcuts $ownedShortcuts -NoRegistry:$NoRegistry
 Write-Host "Installed successfully in $InstallDirectory. Open the Playlist Sync shortcut whenever you need it."
-if ($StartWithRbxport) { & (Join-Path $InstallDirectory 'Configure-Rbxport-Startup.ps1') }
+if ($StartWithRbxport) { & (Join-Path $InstallDirectory 'Configure-Rbxport-Startup.ps1') -NoStart }
 if (-not $NoLaunch) {
-    Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1') + '"'))
+    $launcher=if($StartWithRbxport) { Join-Path $env:LOCALAPPDATA 'rbxport-addons\Start-Rbxport.ps1' } else { Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1' }
+    Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $launcher + '"'))
 }
 Set-SetupStatus 'complete' 'Installed. Playlist Sync will start and close with rbxport.'
 } catch {

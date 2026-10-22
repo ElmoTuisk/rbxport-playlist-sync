@@ -1,5 +1,9 @@
 # Architecture and maintenance notes
 
+## Shared host shortcut integration in 0.11.3
+
+Both distributions carry identical Startup, HostShortcuts and Start-Rbxport PowerShell helpers. The original per-user host shortcuts point to a neutral launcher in the shared registration directory, rather than either add-on installation. It starts the registered host once and dispatches each recognized enabled add-on independently. Each service follows the exact host process and retains its own pairing/data/runtime. Removing either registration preserves the remaining integration; removing the last restores hash-matching original shortcut bytes. The previous Sync-owned wrapper migrates its original backups. Conventional separate launch/stop/sign-in shortcuts are removed only after verifying their PowerShell command shape and package identity. Customized commands are retained. The host binary and library commands are unchanged.
+
 ## Desktop session lifetime in 0.11.2
 
 The launcher finds the exact compatible rbxport executable and passes its process ID to the service. The service watches that PID independently of the WebView connection; confirmed exit rejects pending host calls, cancels acquisition, closes the browser relay and HTTP server, and flushes saved state. A quick host reopen waits for the prior service to exit before starting another. Standard per-user shortcuts are wrapped with original-byte backups and hashes; disable/uninstall restores only unchanged owned links. No host binary or music database is modified.

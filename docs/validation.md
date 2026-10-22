@@ -1,5 +1,19 @@
 # Validation record
 
+## Shared original rbxport shortcuts — 23 October 2026
+
+Sync 0.11.3 and Wizard 0.1.0 use one neutral host launcher. All **185 Sync tests** and **47 Wizard tests** have passing Windows/Node 24 results with real FFmpeg/ffprobe, synthetic audio, pinned Essentia and DPAPI; none skipped. The full sandbox runs passed 179/185 and 42/47 respectively; six Sync and five Wizard loopback fixtures hit sandbox EACCES, then passed in a 21-test restricted API/OAuth rerun with external fetches blocked. Updated startup fixtures and the Wizard cancellation fixture passed targeted reruns after final corrections.
+
+Windows fixtures check companion registration, migration of original-byte backups, conventional desktop/sign-in cleanup, original host icon references, repeat enable, one host with two dispatched companions, exact-PID service arguments, quick reopen and original restoration. A real synthetic process exercises exit detection. Wizard's owning-session fixture aborts pending work and closes its HTTP server exactly once. These fixtures do not access the real library or acquire music. Live deployment and CI results are recorded below when verified.
+
+
+
+With the user's authorization, both existing idle installations were updated from the tested public-source allowlists; installed code hashes matched and their original data locations were retained. Add-on-only read-only database snapshots verified unchanged Sync settings/links/bindings and Wizard draft/cache/write state. Five Sync links remained. Original per-user Desktop and Start Menu rbxport shortcuts now point to the neutral launcher and retain the original executable icon reference; conventional add-on Desktop, Start Menu launch/stop and Windows Startup entries were removed. Customized command shapes are excluded from cleanup.
+
+The first live launch exposed `Start-Process -Wait` following the persistent Node descendant and blocking the companion. The launcher now calls the short process's `WaitForExit()` directly, and the regression fixture rejects descendant waiting. Both final startup fixtures passed again.
+
+The original Desktop shortcut and then the original Start Menu shortcut were launched through Explorer, with a temporary diagnostic `-PauseAutomatic` argument restored byte for byte immediately after launch. Each cycle verified one rbxport 1.9.0 process, both authenticated services connected and bound to its exact PID, both idle, and exactly one visible adjacent Sync/Wizard sidebar button. A normal host-window close stopped both service processes in each cycle. Read-only add-on snapshots stayed identical. `Get-StartApps` listed exactly one rbxport entry and none of the separate add-on launch/stop entries. This verifies the available app entry, not a universal Windows Search ranking guarantee. No audio acquisition, music analysis, import, playlist write, USB operation or saved-scheduling change was started. The host was left closed, as found. Other host versions and a full Windows sign-in remain untested.
+
 ## Session shutdown and installer closure — 23 October 2026
 
 Version 0.11.2 passed **185 Windows tests**, with real FFmpeg/ffprobe and DPAPI and no skips (16.88 seconds). External fetches were blocked while loopback fixtures were allowed. A real synthetic child process verifies process-exit detection. Service fixtures verify cancellation, HTTP shutdown, saved-link preservation and the atomic idle-only update guard. Windows shortcut fixtures cover coupled launch, no service with a closed host, a quick host reopen, original-byte restoration, retention of user-modified links and independent companion registration.
