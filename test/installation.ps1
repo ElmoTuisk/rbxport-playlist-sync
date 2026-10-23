@@ -14,6 +14,8 @@ try {
     foreach ($dir in @('src','public','scripts','docs')) { New-Item -ItemType Directory -Path (Join-Path $source $dir) | Out-Null; Set-Content -LiteralPath (Join-Path $source "$dir\fixture.txt") 'program fixture' }
     Set-Content -LiteralPath (Join-Path $source 'src\server.mjs') '// synthetic service; never executed'
     foreach ($name in @('README.md','PROJECT_OVERVIEW.md','AGENTS.md','CHANGELOG.md','LICENSE','manifest.json','Start-Playlist-Sync.ps1','Stop-Playlist-Sync.ps1','Launch-Playlist-Sync.cmd','Configure-Rbxport-Startup.ps1','Uninstall-Playlist-Sync.ps1')) { Set-Content -LiteralPath (Join-Path $source $name) 'fixture' }
+    Copy-Item -LiteralPath (Join-Path $repo 'scripts\ReleaseTrust.ps1') -Destination (Join-Path $source 'scripts')
+    Copy-Item -LiteralPath (Join-Path $repo 'release-signing.json') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'Install-Playlist-Sync.ps1') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\Installation.ps1') -Destination (Join-Path $source 'scripts')
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\RbxportLauncher.cs') -Destination (Join-Path $source 'scripts')

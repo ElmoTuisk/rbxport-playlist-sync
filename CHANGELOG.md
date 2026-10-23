@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.11.5 — 2026-10-23
+## 0.11.5 — 2026-10-23 (unreleased)
+
+- Require prebuilt trusted, timestamped launcher/script signatures before shortcut integration. Remove local launcher compilation; signing approval is pending and unsigned source integration fails closed.
+- Prepare two-stage provider signing, final signed setup verification and post-signing checksums. Publication requires the exact candidate’s successful Smart App Control validation hash; no signed release has been published.
 
 - Start enabled add-ons concurrently so Wizard does not wait for Sync readiness. Still verify both sidebar buttons and report failures independently.
 - Cancel pending launcher processes immediately when their exact rbxport session closes. Release the launch mutex promptly, bound repeated-click waiting to five seconds, and handle an abandoned launch mutex. A normal close during startup is recorded as closed, without a failure dialog or later automatic reopening.

@@ -1,5 +1,7 @@
 # Architecture and maintenance notes
 
+The unreleased signing correction requires a prebuilt trusted launcher and timestamped program-script signatures, validated against the approved publisher before any shortcut change. Pending policy rejects integration. Installation validates all supplied scripts; reconfiguration validates a fixed complete runtime chain so unrelated legacy installer/packager files can be retained without running them. The release pipeline signs that payload, embeds it in the setup, signs the outer EXE and computes checksums afterward. Public source stays separate from executable payloads. The exact signed candidate must pass the documented Smart App Control lifecycle check before publication. Provider onboarding remains outstanding; see [code signing policy](code-signing.md).
+
 In 0.11.5 the shared helper starts both enabled add-ons before polling their short launcher processes. It checks the exact selected host PID throughout, kills only pending launcher children on host close and releases its mutex. Waiting for a competing launch is bounded to five seconds. Normal close uses a separate native Closed status; it does not queue another host start.
 
 ## Console-free shortcut launch in 0.11.4

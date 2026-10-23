@@ -14,3 +14,5 @@ cookies*.txt
 installed.json
 LOCAL_WORKSPACE.md
 dist/
+
+release/

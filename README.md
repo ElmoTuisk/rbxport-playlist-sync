@@ -22,14 +22,14 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
 2. Download **`playlist-sync-<version>-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
-3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
+3. Run the EXE and click **Install / Update**. Setup installs the tools and connects your existing rbxport shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
 4. Open rbxport from its Start Menu or Desktop shortcut with the default attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
 
 The default setup connects your original per-user **rbxport** Start Menu and Desktop shortcuts to every enabled add-on: Playlist Sync and, if separately installed and enabled, Playlist Wizard. Opening either starts one host and both services; closing that host cancels their work and stops them. Integration removes conventional separate add-on and sign-in shortcuts. The rbxport name and original executable icon are retained. Use `Configure-Rbxport-Startup.ps1` to enable this later. Customized shortcuts are preserved; restore an ordinary rbxport shortcut if configuration reports a conflict. Direct executable and older Store launches bypass the wrapper.
 
 
-Shortcut startup uses a small console-free Windows launcher built from the included public source during setup. It waits for each enabled add-on's sidebar button and displays an error if startup fails. The generated launcher is unsigned, like the Sync setup; restrictive Windows application-control policies may block it. Windows .NET Framework and its compiler must be available.
+The development installer now requires a prebuilt launcher and PowerShell scripts signed by an approved, trusted publisher. No launcher is compiled on the user’s computer. Signing approval is pending; this source build refuses automatic shortcut integration. [Code signing policy](docs/code-signing.md).
 
 ### Install, update and uninstall
 
@@ -41,7 +41,7 @@ For an update, close rbxport and run the new EXE. Setup finds the existing copy 
 
 Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through the EXE adds this uninstall option.
 
-The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. To build it yourself on Windows x64, run `powershell -NoProfile -ExecutionPolicy Bypass -File Build-Installer.ps1`; the result is in `dist/`. The executable is currently unsigned.
+The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. The release pipeline signs the launcher/scripts before building and signing the setup, then computes checksums. Building a setup requires `Build-Installer.ps1 -PayloadDirectory <verified signed input>`. Publication additionally requires the exact signed setup’s Smart App Control validation hash. Trusted signing is pending; no completed fix is available yet. [Code signing policy](docs/code-signing.md).
 
 ## What it does
 

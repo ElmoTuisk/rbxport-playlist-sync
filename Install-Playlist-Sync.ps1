@@ -25,6 +25,8 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 . (Join-Path $PSScriptRoot 'scripts\Desktop.ps1')
 . (Join-Path $PSScriptRoot 'scripts\Installation.ps1')
+. (Join-Path $PSScriptRoot 'scripts\ReleaseTrust.ps1')
+if($StartWithRbxport) { Assert-RbxportReleaseTrust -Root $PSScriptRoot -RequireLauncher }
 $version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'package.json') -Raw | ConvertFrom-Json).version
 $selection = @{DefaultRoot=$InstallDirectory;DefaultData=$DataDirectory}
 if ($ExistingDirectory) { $selection.ExplicitRoot=$ExistingDirectory; $selection.RequireExisting=$true }
@@ -86,6 +88,8 @@ Set-SetupStatus 'installing' 'Installing verified files. Closing setup will fini
 $runtime = Join-Path $InstallDirectory '.runtime'
 $tools = Join-Path $runtime 'tools'
 $include = @('src', 'public', 'scripts', 'docs', 'README.md', 'PROJECT_OVERVIEW.md', 'AGENTS.md', 'CHANGELOG.md', 'LICENSE', 'package.json', 'manifest.json', 'dependencies.json', 'Start-Playlist-Sync.ps1', 'Stop-Playlist-Sync.ps1', 'Launch-Playlist-Sync.cmd', 'Configure-Rbxport-Startup.ps1', 'Uninstall-Playlist-Sync.ps1')
+if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'release\Start-Rbxport.exe')) { $include += 'release' }
+$include += 'release-signing.json'
 $ownedFiles = @('.runtime\node.exe','.runtime\tools\yt-dlp.exe','.runtime\tools\ffmpeg.exe','.runtime\tools\ffprobe.exe')
 foreach ($item in $include) {
     $source = Join-Path $PSScriptRoot $item

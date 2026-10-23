@@ -114,7 +114,7 @@ internal sealed class SetupWindow : Form {
         Text = "Playlist Sync setup"; ClientSize = new Size(540, 370); FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen; Font = new Font("Segoe UI", 10);
         var title = new Label { Text = "Install or update Playlist Sync", Font = new Font("Segoe UI", 19, FontStyle.Bold), Location = new Point(24, 20), Size = new Size(490, 42) };
-        var intro = new Label { Text = "Finds your installed copy and keeps music and saved settings.\nClose rbxport before updating. Internet is required.\nAn unregistered portable copy? Choose its folder below.", Location = new Point(26, 76), Size = new Size(486, 78) };
+        var intro = new Label { Text = "Keeps your music and saved settings. Close rbxport first.\nThe checked option below updates your rbxport shortcuts\nand enables its local connection. Internet is required.", Location = new Point(26, 76), Size = new Size(486, 78) };
         automatic.Text = "Show Playlist Sync when rbxport opens"; automatic.Checked = true; automatic.Location = new Point(26, 158); automatic.Size = new Size(480, 28);
         choose.Text = "Choose existing folder (optional)"; choose.Location = new Point(26, 198); choose.Size = new Size(485, 28);
         choose.LinkClicked += delegate { using (var dialog = new FolderBrowserDialog { Description = "Select your existing Playlist Sync folder", ShowNewFolderButton = false }) { if (dialog.ShowDialog(this) == DialogResult.OK) { existing = dialog.SelectedPath; status.Text = "Update: " + existing; } } };
