@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 23 October 2026. Current release: **v0.11.5**, experimental Windows x64 add-on for rbxport.
+Updated 23 October 2026. Development version: **v0.11.5 (unreleased)**, experimental Windows x64 add-on for rbxport.
 
 [Quick start](README.md) · [Detailed usage](docs/usage.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -55,6 +55,8 @@ v0.10.4 clears saved playlist failures caused by that missing API once the same 
 | `.github/workflows/test.yml` | Windows/Linux CI; setup EXE, source ZIP, checksums and release publication for matching version tags |
 
 ## Validation and current status
+
+The v0.11.4 / Wizard v0.1.1 interim releases passed Windows/Linux CI, but a subsequent user check confirmed that Smart App Control blocks their unsigned generated launcher. They are marked as pre-releases with this warning. Main contains the next unreleased close/reopen correction; no completed Smart App Control-compatible fix is claimed. Windows protection remains enabled.
 
 v0.10.5 passed **148 local Windows tests** with real FFmpeg/ffprobe and DPAPI enabled, with no skips. A read-only same-query metadata comparison fell from 37.65 to 16.01 seconds for all primary results, retaining ten SoundCloud and ten YouTube candidates; Newgrounds was unavailable in both. This is not a whole-playlist speed or completion guarantee. The validation record distinguishes mocked fixtures, discovery-only audits and actual verified downloads.
 

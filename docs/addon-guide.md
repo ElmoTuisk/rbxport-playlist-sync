@@ -13,7 +13,7 @@ Source discovery checks ten initial results per SoundCloud/YouTube query, retain
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.11.5-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+2. Download `playlist-sync-<version>-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
 3. Close rbxport, open the EXE and click **Install / Update**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. With the default automatic-attachment option, open compatible rbxport from its standard Start Menu or Desktop shortcut. Otherwise use the **Playlist Sync** shortcut.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.
