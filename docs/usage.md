@@ -7,7 +7,7 @@ Setup, playlist actions, audio policies and troubleshooting in detail.
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.11.4-windows-setup.exe`**.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-0.11.5-windows-setup.exe`**.
 3. Close rbxport, then open the EXE and click **Install / Update**.
 4. Setup downloads verified tools and creates shortcuts. Internet is required; administrator access and a separate Node installation are not.
 5. Leave **Show Playlist Sync when rbxport opens** checked to enable automatic attachment. Open compatible rbxport from its standard Start Menu or Desktop shortcut. Without automatic attachment, use the Playlist Sync shortcut.

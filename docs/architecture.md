@@ -1,5 +1,7 @@
 # Architecture and maintenance notes
 
+In 0.11.5 the shared helper starts both enabled add-ons before polling their short launcher processes. It checks the exact selected host PID throughout, kills only pending launcher children on host close and releases its mutex. Waiting for a competing launch is bounded to five seconds. Normal close uses a separate native Closed status; it does not queue another host start.
+
 ## Console-free shortcut launch in 0.11.4
 
 The shared shortcut target is `Start-Rbxport.exe`, compiled locally from the identical public `RbxportLauncher.cs` included in both distributions using Windows .NET Framework. A source/executable SHA-256 receipt avoids unnecessary rebuilds and detects changed outputs. New shortcut objects replace old links while retaining their true original-byte restoration records. The native WinExe launches the shared PowerShell helper with `UseShellExecute=false` and `CreateNoWindow=true`; that helper uses the same settings for independent add-on launchers. Bounded process waits avoid following persistent service descendants. Background launchers confirm sidebar readiness before returning. Failures reach a native dialog and private shared-state status/error files. Both the setup and generated launcher are unsigned and subject to Windows application-control policy.

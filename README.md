@@ -2,7 +2,7 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental v0.11.4 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.11.5 · Tested with rbxport 1.9.0**
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,7 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-0.11.4-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+2. Download **`playlist-sync-0.11.5-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
 3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
 4. Open rbxport from its Start Menu or Desktop shortcut with the default attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.

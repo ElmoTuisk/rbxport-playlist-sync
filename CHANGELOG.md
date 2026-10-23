@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.5 — 2026-10-23
+
+- Start enabled add-ons concurrently so Wizard does not wait for Sync readiness. Still verify both sidebar buttons and report failures independently.
+- Cancel pending launcher processes immediately when their exact rbxport session closes. Release the launch mutex promptly, bound repeated-click waiting to five seconds, and handle an abandoned launch mutex. A normal close during startup is recorded as closed, without a failure dialog or later automatic reopening.
+- Add isolated regressions requiring concurrent dispatch and prompt cancellation of two sleeping launchers when the synthetic host exits. Preserve all data, runtime verification and original-shortcut guards from 0.11.4.
+
 ## 0.11.4 — 2026-10-23
 
 - Accept Explorer link-tracking metadata refreshes when every saved shortcut property is unchanged, so normal launches cannot break subsequent updates or original-shortcut restoration.
