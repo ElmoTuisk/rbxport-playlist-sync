@@ -91,6 +91,49 @@ function Get-PlaylistWizardFileHash([string]$Path) {
     try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
     finally { $stream.Dispose(); $sha.Dispose() }
 }
+function Get-PlaylistWizardObsoleteFiles([string]$Root,[string[]]$KeepFiles,[string]$DataDirectory) {
+    $full=Assert-PlaylistWizardPlainPath $Root
+    $keep=@($KeepFiles | ForEach-Object { $_.Replace('\','/') })
+    $candidates=@()
+    $receiptPath=Join-Path $full 'installed.json'
+    if(Test-Path -LiteralPath $receiptPath) {
+        $receipt=Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+        if($receipt.product) {
+            # Validate the entire previous record before planning a single deletion.
+            $previous=Get-PlaylistWizardRemovalPlan $full
+            foreach($entry in $previous.record.files) {
+                if($entry.path.Replace('\','/') -notin $keep) { $candidates+=@{relative=$entry.path;sha256=$entry.sha256} }
+            }
+        }
+    }
+    $legacyPath=Join-Path $PSScriptRoot 'obsolete-program-files.json'
+    if(Test-Path -LiteralPath $legacyPath) {
+        $legacy=Get-Content -LiteralPath $legacyPath -Raw | ConvertFrom-Json
+        if($legacy.schema -ne 1) { throw 'Invalid obsolete-program manifest.' }
+        foreach($entry in $legacy.files.PSObject.Properties) {
+            if($entry.Name.Replace('\','/') -in $keep) { continue }
+            $path=Get-PlaylistWizardOwnedFile $full $entry.Name
+            if(Test-Path -LiteralPath $path -PathType Leaf) {
+                $hash=Get-PlaylistWizardFileHash $path
+                if($hash -in $entry.Value) { $candidates+=@{relative=$entry.Name;sha256=$hash} }
+            }
+        }
+    }
+    $data=(Assert-PlaylistWizardPlainPath $DataDirectory).TrimEnd('\','/')+'\'
+    foreach($entry in $candidates) {
+        $path=Get-PlaylistWizardOwnedFile $full $entry.relative
+        if($path.StartsWith($data,[StringComparison]::OrdinalIgnoreCase)) { continue }
+        if($entry.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Invalid obsolete-program checksum.' }
+        if((Test-Path -LiteralPath $path -PathType Leaf) -and (Get-PlaylistWizardFileHash $path) -eq $entry.sha256) { @{root=$full;relative=$entry.relative;sha256=$entry.sha256} }
+    }
+}
+function Remove-PlaylistWizardObsoleteFiles([object[]]$Files) {
+    foreach($entry in $Files) {
+        $path=Get-PlaylistWizardOwnedFile $entry.root $entry.relative
+        # Recheck immediately before removal. A newly edited old file is retained.
+        if((Test-Path -LiteralPath $path -PathType Leaf) -and (Get-PlaylistWizardFileHash $path) -eq $entry.sha256) { Remove-Item -LiteralPath $path -Force }
+    }
+}
 function Assert-PlaylistWizardPlainPath([string]$Path) {
     $full = [IO.Path]::GetFullPath($Path)
     for ($part = $full; $part; $part = Split-Path $part -Parent) {
@@ -101,7 +144,7 @@ function Assert-PlaylistWizardPlainPath([string]$Path) {
 function Get-PlaylistWizardOwnedFile([string]$Root, [string]$Relative) {
     if (-not $Relative -or [IO.Path]::IsPathRooted($Relative) -or $Relative.Contains(':') -or $Relative -match '(^|[\\/])\.\.?([\\/]|$)') { throw 'Invalid installed file path.' }
     $portable = $Relative.Replace('\','/')
-    if ($portable -notmatch '^(?:release/Start-Rbxport\.exe|scripts/RbxportLauncher\.cs|\.runtime/(?:node\.exe|tools/(?:ffmpeg|ffprobe)\.exe|essentia/(?:essentia-(?:wasm|core)\.cjs|LICENSE-Essentia\.txt))|(?:src|public|scripts|docs)/.+\.(?:mjs|js|html|css|ps1|md|json|png|svg|jpg|jpeg|txt)|(?:README|AGENTS|CHANGELOG|THIRD_PARTY)\.md|LICENSE|LICENSE-AGPL-3\.0\.txt|(?:package|manifest|dependencies|release-signing)\.json|(?:Start-Playlist-Wizard|Stop-Playlist-Wizard|Uninstall-Playlist-Wizard|Configure-Rbxport-Startup)\.ps1|Launch-Playlist-Wizard\.cmd)$') { throw 'This is not an owned program file. Music and saved data cannot be removed.' }
+    if ($portable -notmatch '^(?:release/Start-Rbxport\.exe|scripts/RbxportLauncher\.cs|\.runtime/(?:node\.exe|tools/(?:ffmpeg|ffprobe)\.exe|essentia/(?:essentia-(?:wasm|core)\.cjs|LICENSE-Essentia\.txt))|(?:src|public|scripts|docs)/.+\.(?:mjs|js|html|css|ps1|md|json|png|svg|jpg|jpeg|txt)|(?:README|AGENTS|CHANGELOG|THIRD_PARTY)\.md|LICENSE|LICENSE-AGPL-3\.0\.txt|(?:package|manifest|dependencies|release-signing)\.json|(?:Start-Playlist-Wizard|Stop-Playlist-Wizard|Uninstall-Playlist-Wizard|Configure-Rbxport-Startup|Install-Playlist-Wizard|Package-Addon)\.ps1|(?:Launch|Install)-Playlist-Wizard\.cmd)$') { throw 'This is not an owned program file. Music and saved data cannot be removed.' }
     $base = [IO.Path]::GetFullPath($Root).TrimEnd('\','/') + '\'
     $full = [IO.Path]::GetFullPath((Join-Path $Root $Relative))
     if (-not $full.StartsWith($base, [StringComparison]::OrdinalIgnoreCase)) { throw 'Installed file escaped its folder.' }

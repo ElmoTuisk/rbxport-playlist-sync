@@ -35,6 +35,8 @@ The development installer now requires a prebuilt launcher and PowerShell script
 
 Every release provides one **`playlist-sync-<version>-windows-setup.exe`**. Extraction, the private runtime and checksum-verified audio tools are handled automatically. Internet and an existing compatible rbxport installation are required. Administrator access is not required.
 
+Updates remove obsolete program files only when their previous ownership and checksums match; recognized legacy setup scripts are also removed. Edited files, unknown files and saved data are retained.
+
 For an update, close rbxport and run the new EXE. Setup finds the existing copy through registration, shortcuts or the standard folder, updates it in place and retains its saved-data location. It stops an idle service belonging to that installation, including older versions. Active work and unrelated running copies block the update. For an unregistered portable copy, use **Choose existing folder**. Multiple detected copies require that choice.
 
 **Show Playlist Sync when rbxport opens** is checked by default. It configures the original rbxport shortcuts. Disabling or uninstalling one add-on keeps the shared launcher working for the other; disabling the last restores unchanged original shortcuts byte for byte. The host executable is unchanged. The installer’s **Cancel**, Escape and window close button request cancellation; if file installation has begun, setup finishes that step safely before closing.

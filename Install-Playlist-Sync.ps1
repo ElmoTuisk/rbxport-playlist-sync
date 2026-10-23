@@ -97,6 +97,7 @@ foreach ($item in $include) {
         $ownedFiles += @(Get-ChildItem -LiteralPath $source -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($PSScriptRoot.Length + 1) })
     } else { $ownedFiles += $item }
 }
+$obsoleteFiles=@(Get-PlaylistSyncObsoleteFiles -Root $InstallDirectory -KeepFiles $ownedFiles -DataDirectory $DataDirectory)
 # Reject linked program destinations before overwriting any existing file.
 foreach ($relative in $ownedFiles) { $null = Get-PlaylistSyncOwnedFile $InstallDirectory $relative }
 New-Item -ItemType Directory -Force -Path $tools | Out-Null
@@ -125,9 +126,9 @@ foreach ($item in $include) {
     } else { Copy-Item -LiteralPath $source -Destination $InstallDirectory -Force }
 }
 $ownedShortcuts = @()
-Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDirectory -Version $version -Files $ownedFiles -NoRegistry:$NoRegistry
 & (Join-Path $runtime 'node.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'The private runtime did not start.' }
+Remove-PlaylistSyncObsoleteFiles $obsoleteFiles
 if (-not $NoShortcuts -and -not $StartWithRbxport) {
     $shell = New-Object -ComObject WScript.Shell
     $menuDirectory = if ($ShortcutRoot) { Join-Path $ShortcutRoot 'Start Menu\Playlist Sync' } else { Join-Path ([Environment]::GetFolderPath('Programs')) 'Playlist Sync' }

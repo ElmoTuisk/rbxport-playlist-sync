@@ -18,6 +18,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'release-signing.json') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'Install-Playlist-Sync.ps1') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\Installation.ps1') -Destination (Join-Path $source 'scripts')
+    Copy-Item -LiteralPath (Join-Path $repo 'scripts\obsolete-program-files.json') -Destination (Join-Path $source 'scripts')
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\RbxportLauncher.cs') -Destination (Join-Path $source 'scripts')
     Set-Content -LiteralPath (Join-Path $source 'scripts\Desktop.ps1') "function Find-PlaylistSyncRbxport { return 'fixture-rbxport.exe' }`nfunction Test-PlaylistSyncServiceListening { return `$false }"
     @{name='rbxport-playlist-sync-addon';version='0.10.5'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source 'package.json')
@@ -47,10 +48,20 @@ try {
     & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
     $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
     Assert-Install ($record.product -eq 'rbxport-playlist-sync' -and $record.files.Count -gt 10) 'Installation receipt missing'
+    # The next update must remove only unchanged files retired by the previous version.
+    foreach($name in @('retired.mjs','retired-edited.mjs')) {
+        Set-Content -LiteralPath (Join-Path $target ('src\'+$name)) '// retired fixture'
+        $record.files+=@{path=('src\'+$name);sha256=(Hash (Join-Path $target ('src\'+$name)))}
+    }
+    $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $target 'installed.json')
+    Set-Content -LiteralPath (Join-Path $target 'src\retired-edited.mjs') '// user edit; keep'
     # Upgrade without an explicit data path must preserve the first installation's custom data path.
     & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
     $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
     Assert-Install ($record.dataDirectory -eq $data) 'Upgrade moved saved data'
+    Assert-Install (-not(Test-Path -LiteralPath (Join-Path $target 'src\retired.mjs'))) 'Unchanged obsolete program file remained'
+    Assert-Install (Test-Path -LiteralPath (Join-Path $target 'src\retired-edited.mjs')) 'Edited obsolete program file was removed'
+    Assert-Install (Test-Path -LiteralPath (Join-Path $target 'src\server.mjs')) 'A current program file was removed'
     # Discover both historical receipts and registered portable copies without touching live registration.
     $legacy = Join-Path $fixture 'portable'
     New-Item -ItemType Directory -Path (Join-Path $legacy 'src'),(Join-Path $legacy '.local-data') -Force | Out-Null

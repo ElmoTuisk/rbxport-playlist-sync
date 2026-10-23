@@ -79,7 +79,7 @@ This release includes an optional Spotisaver connection with first-source or las
 1. Continue testing session shutdown and shortcut launches across additional host versions. Original Desktop and Start Menu launches with both visible add-ons and host-owned shutdown were verified on rbxport 1.9.0; see the validation record.
 2. Finish representative full acquisition runs and record denominators, actual source quality, retries, quality holds and completion time. Establish evidence before making a 95% claim.
 3. Improve compatibility diagnostics and investigate additional host versions without guessing the open library or weakening identity guards.
-4. Improve update cleanup: matching installed files are overwritten today, but obsolete program files are not removed automatically. Preserve saved data and music.
+4. Verify obsolete-file cleanup across additional historical installations. Current setup removes unchanged previously owned program files and recognized legacy setup scripts; edited/unknown files, saved data and music are retained.
 5. Keep the UI and background work small as reliability improves. Existing measures include bounded caches, serial acquisition, coalesced progress and skipping hidden/unchanged renders.
 
 ## Development and release

@@ -1,5 +1,9 @@
 # Validation record
 
+## Obsolete program cleanup
+
+After the user requested old-file removal, both installers gained cleanup of unchanged previous-receipt files absent from the new program set, plus known historical setup/packager scripts identified by public SHA-256 values. Planning validates the full old receipt before deletion; paths stay within the owned program allowlist and outside the saved-data directory. Deletion rechecks checksums. Updated Windows installation fixtures verify removal of an obsolete file while preserving an edited obsolete file, current program files, music and saved data; both passed. Wizard’s retained Essentia runtime remains in the current file set. Historical source/setup ZIPs are not swept automatically because unrecognized archives may be user backups. In the specifically authorized local cleanup, seven verified early setup/source ZIPs, three unchanged legacy setup/packager scripts and three unused generated-launcher/cache files were removed. The cleanup rechecked original shortcut, registration, installation-record and available saved-data hashes; it completed without changing protected files. No host launch, music operation or security-policy change was performed.
+
 ## Trusted signing preparation — unreleased
 
 The maintainer confirmed an individual publisher based in Estonia. No certificate or provider approval is available. The current code requires trusted timestamped signatures before changing shortcuts, ships a prebuilt launcher instead of compiling locally, and prepares staged signing of scripts/launcher followed by the outer setup. Publication additionally checks the exact setup’s recorded Smart App Control validation hash. See the [code signing policy](code-signing.md). Signing-provider XML templates and both signing requests remain untested until onboarding. The signed installer, clean-machine lifecycle, all upstream binaries under Smart App Control and live in-popup uninstall remain unverified.

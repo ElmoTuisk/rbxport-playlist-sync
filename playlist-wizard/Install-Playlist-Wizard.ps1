@@ -91,12 +91,14 @@ $include = @('src', 'public', 'scripts', 'docs', 'README.md', 'AGENTS.md', 'CHAN
 if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'release\Start-Rbxport.exe')) { $include += 'release' }
 $include += 'release-signing.json'
 $ownedFiles = @('.runtime\node.exe','.runtime\tools\ffmpeg.exe','.runtime\tools\ffprobe.exe')
+$ownedFiles+=@($manifest.essentia.files.PSObject.Properties | ForEach-Object { '.runtime\essentia\'+$_.Name })
 foreach ($item in $include) {
     $source = Join-Path $PSScriptRoot $item
     if ((Get-Item -LiteralPath $source).PSIsContainer) {
         $ownedFiles += @(Get-ChildItem -LiteralPath $source -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($PSScriptRoot.Length + 1) })
     } else { $ownedFiles += $item }
 }
+$obsoleteFiles=@(Get-PlaylistWizardObsoleteFiles -Root $InstallDirectory -KeepFiles $ownedFiles -DataDirectory $DataDirectory)
 # Reject linked program destinations before overwriting any existing file.
 foreach ($relative in $ownedFiles) { $null = Get-PlaylistWizardOwnedFile $InstallDirectory $relative }
 New-Item -ItemType Directory -Force -Path $tools | Out-Null
@@ -125,11 +127,10 @@ foreach ($item in $include) {
 }
 & (Join-Path $runtime 'node.exe') (Join-Path $InstallDirectory 'scripts\Install-Essentia.mjs') --directory (Join-Path $runtime 'essentia') --archive (Join-Path $CacheDirectory 'essentia.js-0.1.3.tgz')
 if($LASTEXITCODE -ne 0) { throw 'Essentia setup did not complete. Run setup again; your saved data was kept.' }
-$ownedFiles+=@($manifest.essentia.files.PSObject.Properties | ForEach-Object { '.runtime\essentia\'+$_.Name })
 $ownedShortcuts = @()
-Write-PlaylistWizardInstallRecord -Root $InstallDirectory -DataDirectory $DataDirectory -Version $version -Files $ownedFiles -NoRegistry:$NoRegistry
 & (Join-Path $runtime 'node.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'The private runtime did not start.' }
+Remove-PlaylistWizardObsoleteFiles $obsoleteFiles
 if (-not $NoShortcuts -and -not $StartWithRbxport) {
     $shell = New-Object -ComObject WScript.Shell
     $menuDirectory = if ($ShortcutRoot) { Join-Path $ShortcutRoot 'Start Menu\Playlist Wizard' } else { Join-Path ([Environment]::GetFolderPath('Programs')) 'Playlist Wizard' }

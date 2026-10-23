@@ -2,6 +2,8 @@
 
 ## 0.11.5 — 2026-10-23 (unreleased)
 
+- Remove obsolete program files during updates only after ownership/checksum verification. Recognize historical setup/packager scripts by public SHA-256 values; retain changed or unknown files and all saved data.
+
 - Require prebuilt trusted, timestamped launcher/script signatures before shortcut integration. Remove local launcher compilation; signing approval is pending and unsigned source integration fails closed.
 - Prepare two-stage provider signing, final signed setup verification and post-signing checksums. Publication requires the exact candidate’s successful Smart App Control validation hash; no signed release has been published.
 

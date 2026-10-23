@@ -32,6 +32,8 @@ Essentia analysis decodes the complete file, then measures up to 30 seconds each
 
 Automatic attachment preserves the rbxport shortcut name and executable icon, enables the current user's `RBXPORT_DEVTOOLS_PORT=43822`, and removes conventional separate add-on and Windows sign-in shortcuts. Both services follow the selected host process and stop when it exits. Starting rbxport does not analyze music or create a Wizard playlist. To disable, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<installed folder>\Configure-Rbxport-Startup.ps1" -Disable`. Disabling Wizard preserves an enabled Sync launcher; disabling the last add-on restores unchanged original shortcuts and the previous user port. Customized commands are preserved. Direct executable and older Store launches bypass integration; Store rbxport 0.19.3 remains incompatible.
 
+Updates remove obsolete program files only when their previous ownership and checksums match; recognized legacy setup scripts are also removed. Edited files, unknown files and saved data are retained.
+
 Close rbxport before updating. Setup stops an idle older Wizard service belonging to that installation; active work and unrelated processes block updates. The EXE’s Cancel/close requests safe cancellation. Source installation remains available with `Install-Playlist-Wizard.cmd`; source builds cannot enable shortcuts without approved signed release files. No automatic updater is installed.
 
 
