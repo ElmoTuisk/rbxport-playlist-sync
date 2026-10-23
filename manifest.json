@@ -1,7 +1,7 @@
 {
   "id": "playlist-sync",
   "name": "Playlist Sync",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "bridgeVersion": 1,
   "runtime": "Node.js 24",
   "entry": "src/server.mjs",
@@ -16,5 +16,5 @@
   ],
   "qualityPolicy": "Default: MP3 >= 320 kbps or lossless; optional AAC >= 256 kbps preserved as M4A",
   "display": "in-rbxport-popover-below-tag-list",
-  "installer": "playlist-sync-0.11.3-windows-setup.exe"
+  "installer": "playlist-sync-0.11.4-windows-setup.exe"
 }

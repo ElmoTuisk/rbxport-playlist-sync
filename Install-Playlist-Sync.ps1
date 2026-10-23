@@ -96,7 +96,10 @@ foreach ($item in $include) {
 # Reject linked program destinations before overwriting any existing file.
 foreach ($relative in $ownedFiles) { $null = Get-PlaylistSyncOwnedFile $InstallDirectory $relative }
 New-Item -ItemType Directory -Force -Path $tools | Out-Null
-Copy-Item -LiteralPath $nodeDownload -Destination (Join-Path $runtime 'node.exe') -Force
+$installedNode=Join-Path $runtime 'node.exe'
+if(-not(Test-Path -LiteralPath $installedNode) -or (Get-PlaylistSyncFileHash $installedNode) -ne $manifest.node.sha256) {
+    Copy-Item -LiteralPath $nodeDownload -Destination $installedNode -Force
+}
 Copy-Item -LiteralPath $ytdlpDownload -Destination (Join-Path $tools 'yt-dlp.exe') -Force
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($ffmpegDownload)
@@ -148,8 +151,11 @@ Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDire
 Write-Host "Installed successfully in $InstallDirectory. Open the Playlist Sync shortcut whenever you need it."
 if ($StartWithRbxport) { & (Join-Path $InstallDirectory 'Configure-Rbxport-Startup.ps1') -NoStart }
 if (-not $NoLaunch) {
-    $launcher=if($StartWithRbxport) { Join-Path $env:LOCALAPPDATA 'rbxport-addons\Start-Rbxport.ps1' } else { Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1' }
-    Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $launcher + '"'))
+    if($StartWithRbxport) { Start-Process -FilePath (Join-Path $env:LOCALAPPDATA 'rbxport-addons\Start-Rbxport.exe') }
+    else {
+        $launcher=Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1'
+        Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $launcher + '"'))
+    }
 }
 Set-SetupStatus 'complete' 'Installed. Playlist Sync will start and close with rbxport.'
 } catch {

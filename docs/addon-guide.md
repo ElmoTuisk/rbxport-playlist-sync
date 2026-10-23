@@ -4,7 +4,7 @@ A small add-on for linking Spotify and SoundCloud playlists to your rbxport coll
 
 **Open it under Tag List on the left in rbxport.** A small panel shows each linked playlist, its status and a Sync button. Click a playlist name to see missing tracks. Settings live behind the gear. There are no dashboard pages or navigation tabs.
 
-Experimental v0.11.3, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
+Experimental v0.11.4, tested with Windows x64 / rbxport 1.9.0 at host commit `7fb4dad3f88a2cc0cecec0e718b4dde408fd7448`.
 
 New downloads include album artwork automatically: exact Spotify album images or SoundCloud track artwork, with an existing attached cover as fallback. Missing/broken artwork does not discard verified audio. MP3/AAC audio stays packet-preserved; no existing collection files are rewritten. Provider image downloads are limited to known HTTPS CDNs, 5 MiB per image and 15 seconds, with at most 8 MiB/32 entries cached. Images are normalized to a compatible JPEG attachment of at most 1200 pixels per side. See the README for the full behavior.
 
@@ -13,7 +13,7 @@ Source discovery checks ten initial results per SoundCloud/YouTube query, retain
 ## Install
 
 1. Have [rbxport for Windows](https://github.com/chrisle/rbxport) installed.
-2. Download `playlist-sync-0.11.3-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+2. Download `playlist-sync-0.11.4-windows-setup.exe` from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
 3. Close rbxport, open the EXE and click **Install / Update**. Setup downloads and verifies a private Node runtime, yt-dlp and FFmpeg/FFprobe. No administrator access, developer tools or PATH configuration is needed. Internet access is required for setup.
 4. With the default automatic-attachment option, open compatible rbxport from its standard Start Menu or Desktop shortcut. Otherwise use the **Playlist Sync** shortcut.
 5. In rbxport, open **Playlist sync**, directly below **Tag List** on the left. Link a playlist, then sync.

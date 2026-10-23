@@ -16,6 +16,7 @@ try {
     foreach ($name in @('README.md','PROJECT_OVERVIEW.md','AGENTS.md','CHANGELOG.md','LICENSE','manifest.json','Start-Playlist-Sync.ps1','Stop-Playlist-Sync.ps1','Launch-Playlist-Sync.cmd','Configure-Rbxport-Startup.ps1','Uninstall-Playlist-Sync.ps1')) { Set-Content -LiteralPath (Join-Path $source $name) 'fixture' }
     Copy-Item -LiteralPath (Join-Path $repo 'Install-Playlist-Sync.ps1') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\Installation.ps1') -Destination (Join-Path $source 'scripts')
+    Copy-Item -LiteralPath (Join-Path $repo 'scripts\RbxportLauncher.cs') -Destination (Join-Path $source 'scripts')
     Set-Content -LiteralPath (Join-Path $source 'scripts\Desktop.ps1') "function Find-PlaylistSyncRbxport { return 'fixture-rbxport.exe' }`nfunction Test-PlaylistSyncServiceListening { return `$false }"
     @{name='rbxport-playlist-sync-addon';version='0.10.5'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source 'package.json')
     Copy-Item -LiteralPath $NodePath -Destination (Join-Path $cache 'node.exe')

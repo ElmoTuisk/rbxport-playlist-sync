@@ -1,5 +1,9 @@
 # Architecture and maintenance notes
 
+## Console-free shortcut launch in 0.11.4
+
+The shared shortcut target is `Start-Rbxport.exe`, compiled locally from the identical public `RbxportLauncher.cs` included in both distributions using Windows .NET Framework. A source/executable SHA-256 receipt avoids unnecessary rebuilds and detects changed outputs. New shortcut objects replace old links while retaining their true original-byte restoration records. The native WinExe launches the shared PowerShell helper with `UseShellExecute=false` and `CreateNoWindow=true`; that helper uses the same settings for independent add-on launchers. Bounded process waits avoid following persistent service descendants. Background launchers confirm sidebar readiness before returning. Failures reach a native dialog and private shared-state status/error files. Both the setup and generated launcher are unsigned and subject to Windows application-control policy.
+
 ## Shared host shortcut integration in 0.11.3
 
 Both distributions carry identical Startup, HostShortcuts and Start-Rbxport PowerShell helpers. The original per-user host shortcuts point to a neutral launcher in the shared registration directory, rather than either add-on installation. It starts the registered host once and dispatches each recognized enabled add-on independently. Each service follows the exact host process and retains its own pairing/data/runtime. Removing either registration preserves the remaining integration; removing the last restores hash-matching original shortcut bytes. The previous Sync-owned wrapper migrates its original backups. Conventional separate launch/stop/sign-in shortcuts are removed only after verifying their PowerShell command shape and package identity. Customized commands are retained. The host binary and library commands are unchanged.

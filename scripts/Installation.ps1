@@ -101,7 +101,7 @@ function Assert-PlaylistSyncPlainPath([string]$Path) {
 function Get-PlaylistSyncOwnedFile([string]$Root, [string]$Relative) {
     if (-not $Relative -or [IO.Path]::IsPathRooted($Relative) -or $Relative.Contains(':') -or $Relative -match '(^|[\\/])\.\.?([\\/]|$)') { throw 'Invalid installed file path.' }
     $portable = $Relative.Replace('\','/')
-    if ($portable -notmatch '^(?:\.runtime/(?:node\.exe|tools/(?:yt-dlp|ffmpeg|ffprobe)\.exe)|(?:src|public|scripts|docs)/.+\.(?:mjs|js|html|css|ps1|md|json|png|svg|jpg|jpeg|txt)|(?:README|PROJECT_OVERVIEW|AGENTS|CHANGELOG)\.md|LICENSE|(?:package|manifest|dependencies)\.json|(?:Start-Playlist-Sync|Stop-Playlist-Sync|Uninstall-Playlist-Sync|Configure-Rbxport-Startup)\.ps1|Launch-Playlist-Sync\.cmd)$') { throw 'This is not an owned program file. Music and saved data cannot be removed.' }
+    if ($portable -notmatch '^(?:scripts/RbxportLauncher\.cs|\.runtime/(?:node\.exe|tools/(?:yt-dlp|ffmpeg|ffprobe)\.exe)|(?:src|public|scripts|docs)/.+\.(?:mjs|js|html|css|ps1|md|json|png|svg|jpg|jpeg|txt)|(?:README|PROJECT_OVERVIEW|AGENTS|CHANGELOG)\.md|LICENSE|(?:package|manifest|dependencies)\.json|(?:Start-Playlist-Sync|Stop-Playlist-Sync|Uninstall-Playlist-Sync|Configure-Rbxport-Startup)\.ps1|Launch-Playlist-Sync\.cmd)$') { throw 'This is not an owned program file. Music and saved data cannot be removed.' }
     $base = [IO.Path]::GetFullPath($Root).TrimEnd('\','/') + '\'
     $full = [IO.Path]::GetFullPath((Join-Path $Root $Relative))
     if (-not $full.StartsWith($base, [StringComparison]::OrdinalIgnoreCase)) { throw 'Installed file escaped its folder.' }

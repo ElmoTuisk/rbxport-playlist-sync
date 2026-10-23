@@ -2,7 +2,7 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental v0.11.3 · Tested with rbxport 1.9.0**
+**Windows x64 · Experimental v0.11.4 · Tested with rbxport 1.9.0**
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,12 +19,15 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-0.11.3-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+2. Download **`playlist-sync-0.11.4-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
 3. Run the EXE and click **Install / Update**. Setup installs the tools and creates shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
 4. Open rbxport from its Start Menu or Desktop shortcut with the default attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
 
 The default setup connects your original per-user **rbxport** Start Menu and Desktop shortcuts to every enabled add-on: Playlist Sync and, if separately installed and enabled, Playlist Wizard. Opening either starts one host and both services; closing that host cancels their work and stops them. Integration removes conventional separate add-on and sign-in shortcuts. The rbxport name and original executable icon are retained. Use `Configure-Rbxport-Startup.ps1` to enable this later. Customized shortcuts are preserved; restore an ordinary rbxport shortcut if configuration reports a conflict. Direct executable and older Store launches bypass the wrapper.
+
+
+Shortcut startup uses a small console-free Windows launcher built from the included public source during setup. It waits for each enabled add-on's sidebar button and displays an error if startup fails. The generated launcher is unsigned, like the Sync setup; restrictive Windows application-control policies may block it. Windows .NET Framework and its compiler must be available.
 
 ### Install, update and uninstall
 
@@ -109,11 +112,11 @@ New MP3/M4A/approved FLAC downloads embed the exact Spotify album or SoundCloud 
 <details>
 <summary><strong>Updates & stopping</strong> — keep saved settings and music</summary>
 
-**Stop:** Start Menu → Playlist Sync → **Stop Playlist Sync**.
+**Stop:** close rbxport normally. Its add-on services stop with it. For a legacy standalone service, use `Stop-Playlist-Sync.ps1` from its installed folder.
 
 **Update:** stop the add-on and run the latest setup EXE. It updates the detected installation; use **Choose existing folder** for an unregistered portable copy. Saved links, settings, accounts and music are preserved. Updates are manual; matching program files are overwritten, but obsolete files are not yet removed automatically.
 
-Updating rbxport is separate and may require an add-on update. Reopen through Playlist Sync afterward. Keep the data folder, normally `%LOCALAPPDATA%\rbxport-playlist-sync`, private.
+Updating rbxport is separate and may require an add-on update. Reopen through the integrated rbxport shortcut afterward. Keep the data folder, normally `%LOCALAPPDATA%\rbxport-playlist-sync`, private.
 
 [Update and recovery details](docs/usage.md#stop-or-update).
 

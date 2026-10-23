@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.4 — 2026-10-23
+
+- Accept Explorer link-tracking metadata refreshes when every saved shortcut property is unchanged, so normal launches cannot break subsequent updates or original-shortcut restoration.
+- Fix original Desktop/Start Menu shortcuts doing nothing on affected Windows configurations. Build a console-free Windows launcher from public C# source during integration, and use console-free PowerShell children for both enabled add-ons. Setup uses the same launcher.
+- Wait for each add-on's visible sidebar button before reporting background startup success. Keep per-add-on failures independent; report startup errors in a dialog with a private local diagnostic instead of silently disappearing.
+- Keep an existing Node runtime when its checksum already matches, avoiding unnecessary overwrite/file-lock failures on updates.
+- Preserve original shortcut backups, companion registration and saved-data paths. Extend Windows fixtures to execute generated shortcuts, verify console-free child dispatch and check failure propagation. The setup and generated launcher are unsigned; Windows application-control policies can block them.
+
 ## 0.11.3 — 2026-10-23
 
 - Start both enabled add-ons through the original rbxport Desktop and Start Menu entries. Keep the host icon, one host process, independent data, and a shared launcher that survives removing either companion. Migrate the earlier Sync wrapper without losing original shortcut backups.
