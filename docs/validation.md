@@ -1,5 +1,17 @@
 # Validation record
 
+## Single-file JavaScript setup — 24 October 2026
+
+The user approved one `.mjs` installer per add-on with official Node.js 24 or newer installed first. This supersedes the older mandatory-EXE distribution plan below. Both READMEs show the prerequisite and exact `node <download.mjs>` command. The public source ZIP is optional for users. The main tag workflow now requires Windows/Linux test success, builds/verifies the one-file setup and publishes it with source and SHA-256 checksums; optional native EXEs retain their independent signing gates.
+
+The setup engine and fixed Windows API adapter are embedded with bounded, hashed public program payloads. Two same-source builds produced identical bytes on the tested platform. The generated file verified and showed help from an isolated folder without source dependencies. On Windows, verification also passed with an Internet-origin Zone.Identifier attached; this does not establish every downloaded-install or application-control policy case. The generated bundle's own engine performed fixture installation successfully.
+
+The combined full local Windows/Node 24 run passed **281/281 tests, no skips**, in 16.98 seconds with loopback-only fetches, real synthetic audio, Essentia and DPAPI. The subsequent installer-only rerun passed **26/26 checks**, including added partial-shortcut recovery and paired idle-only Wizard update cases. Fixtures cover Sync alone, Wizard alone and both install orders; custom installation/data discovery; preserved music/data/unknown/edited-file sentinels; missing/corrupt caches; hostile paths/redirects/receipts; invalid publisher signatures; foreign/running service refusal; cancellation/concurrency; and restored files/links/registrations after failures. Real Windows signature, ZIP extraction and COM shortcut operations were confined to temporary fixture folders. Existing managed disable/removal helpers consumed the new receipts, removed only owned files, restored the original shortcut state and kept data/music sentinels.
+
+No live add-on installation, rbxport launch/restart, real music download/analysis or library write was performed for this installer change. Windows security settings and the user's existing installation were not changed. A complete fresh-machine interactive install and every Windows policy remain unverified. Current shortcut lifecycle evidence is recorded below; prior source-only publication and native signing limitations are historical and do not block the new JavaScript release path.
+
+The final publication-candidate full Windows run passed **285/285 tests, no failures or skips**, in 16.40 seconds. This includes all final installer changes and both distributions' 13 installer cases.
+
 ## JavaScript startup simplification — 24 October 2026, unreleased
 
 The shared shortcut now targets an unchanged official Node.js runtime and `Start-Rbxport.mjs`, replacing the native EXE and PowerShell-file startup chain. Configuration verifies the pinned Node checksum and valid OpenJS publisher signature before changing shortcuts. The shared runtime survives removing either independent add-on. Installation/configuration and a fixed read-only host-process inventory still use PowerShell. A brief minimized parent console is possible; the live checks below do not establish console-free startup. No trust store or application-control setting is changed. A signed runtime is not a signature of our JavaScript.

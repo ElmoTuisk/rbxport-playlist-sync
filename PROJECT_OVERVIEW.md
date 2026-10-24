@@ -1,6 +1,6 @@
 # Project overview
 
-Updated 24 October 2026. Development version: **v0.11.5 (unreleased)**, experimental Windows x64 add-on for rbxport.
+Updated 24 October 2026. Version: **v0.11.5**, experimental Windows x64 add-on for rbxport. Official Node.js 24 or newer is required to run the single-file JavaScript setup.
 
 [Quick start](README.md) · [Detailed usage](docs/usage.md) · [Architecture](docs/architecture.md) · [Test evidence](docs/validation.md) · [Playlist test criteria](docs/playlist-testing.md) · [Changelog](CHANGELOG.md)
 
@@ -24,7 +24,7 @@ The reliability target is approximately 95% automatic completion across varied p
 | Ordering | Resolved source songs first in source order; extra local entries retained at the bottom in their existing relative order |
 | Cleanup | A deleted target clears its add-on records after a successful current-library check; audio files and reusable collection bindings are retained |
 | UI | Compact popup, progress/cancel, source review, quality approvals and linked-playlist badges; current verified file status takes priority over old lower-quality alternatives |
-| Packaging | Single-file setup EXE, existing-copy updates, verified private runtime/tools, preserved saved data and GitHub Actions publication after both CI platforms pass |
+| Packaging | Single-file JavaScript `.mjs` setup, Node.js 24+ prerequisite, existing-copy updates, verified private runtime/tools, preserved saved data and publication after both CI platforms pass |
 
 ## How it integrates
 
@@ -70,7 +70,7 @@ The game-music playlist was a test reference only. No game-music audio should be
 
 ## Next work
 
-The Windows setup executable (`Build-Installer.ps1`) is the main download for every release. It discovers existing copies through registration, shortcuts and the standard folder; an optional folder picker handles unregistered portable copies. Updates keep the existing saved-data path. Managed uninstall preserves music, playlists, settings and companion add-ons. Source remains public. JavaScript startup removes the custom native launcher dependency, while trusted setup signing and exact-candidate Windows validation remain unresolved release requirements. See the [code signing policy](docs/code-signing.md).
+The one-file JavaScript setup (`node scripts/Build-JavaScript-Installer.mjs`) is the main download. Users install official Node.js 24 or newer once, then run the downloaded `.mjs` file and confirm. Setup discovers existing copies through registration/shared settings/default folders; `--existing-directory` selects unregistered portable copies. Updates retain saved-data locations. Managed uninstall preserves music, settings and companions. Source and checksums remain public. Optional native EXE builds retain their separate trusted signing gates; they no longer block JavaScript releases. See [distribution details](docs/code-signing.md).
 
 The separate [Playlist Wizard development project](playlist-wizard/README.md) now implements a local draft builder, autosort into a new playlist, count/duration choices, energy curves and a compact independent popup. It has its own service, data and setup. Authorized Windows installation verified its visible sidebar/popup and guarded connection on rbxport 1.9.0. Playlist-output/USB compatibility and musical quality remain unverified; see its validation record. The Sync bridge shares only a cooperative native-write lease with it.
 
@@ -86,6 +86,6 @@ This release includes an optional Spotisaver connection with first-source or las
 
 Use Node.js 24. Run `node --test test/*.test.mjs`; set `FFMPEG` and `FFPROBE` to installed executables to include the real audio tests locally. Windows is needed for the PowerShell/DPAPI checks. Use synthetic audio and fixture libraries for routine work.
 
-For a release, update current version fields in `package.json`, `manifest.json`, README and current install/upload guidance. Add a changelog entry and update validation evidence; keep historical entries intact. Push the source and a matching `vX.Y.Z` tag. GitHub Actions waits for both test platforms, packages the allowlisted source, rejects private-data entries, builds the required single-file EXE, writes SHA-256 checksums and publishes both EXE and source ZIP. A failed build must not be presented as a published update.
+For a release, update current version fields in `package.json`, `manifest.json`, README and install guidance. Add a changelog entry and validation evidence; keep history intact. Push source and a matching `vX.Y.Z` tag. GitHub Actions waits for Windows/Linux tests, builds/verifies the self-contained `.mjs`, packages public source, writes SHA-256 checksums and publishes all three assets. A failed build must not be presented as a published update.
 
 Do not commit or package credentials, pairing URLs, cookies, private diagnostics, music, `.local-data`, `.runtime` or `.tools`. The runtime's saved state remains separate from the source checkout. See `AGENTS.md` for maintenance rules.

@@ -7,10 +7,10 @@ Setup, playlist actions, audio policies and troubleshooting in detail.
 ## Install
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-<version>-windows-setup.exe`**.
-3. Close rbxport, then open the EXE and click **Install / Update**.
-4. Setup downloads verified tools and creates shortcuts. Internet is required; administrator access and a separate Node installation are not.
-5. Leave **Show Playlist Sync when rbxport opens** checked to enable automatic attachment. Open compatible rbxport from its standard Start Menu or Desktop shortcut. Without automatic attachment, use the Playlist Sync shortcut.
+2. From **[Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)**, download **`playlist-sync-<version>-windows-setup.mjs`**. Install official Node.js 24 or newer first.
+3. Close rbxport, then run `node <downloaded-setup.mjs>` in the download folder and confirm **y**.
+4. Setup downloads verified private tools and connects the regular shortcuts. Internet and the initial Node.js installation are required; administrator access is not.
+5. Open compatible rbxport from its regular Start Menu or Desktop shortcut. Both installed add-ons start automatically. The setup file is not needed for everyday launches.
 6. In rbxport, click **Playlist sync**, directly below **Tag List** on the left.
 
 For automatic attachment, run `Configure-Rbxport-Startup.ps1` from each installed add-on folder. The original rbxport shortcuts then start both enabled add-ons through one shared launcher. Closing rbxport stops both services and cancels their current work. Conventional separate add-on and Windows sign-in shortcuts are removed. Services, saved data and pairing remain independent. Installer automation can pass `-StartWithRbxport`.
@@ -145,7 +145,7 @@ Deleting a linked playlist in rbxport also clears its add-on link, pending entri
 ## Stop or update
 
 - **Stop:** Close rbxport. Playlist Sync cancels current work and shuts down with it. Closing only the popup keeps syncing while rbxport remains open.
-- **Update:** Stop the add-on and run the latest setup EXE. Setup checks installation registration, shortcuts and the standard folder, then updates that copy in place. Use **Choose existing folder** for an unregistered portable copy or to resolve multiple copies. Saved links, accounts, settings and music stay in their existing location. Matching program files are overwritten; obsolete files are not yet removed automatically. Updates remain manual.
+- **Update:** Close rbxport and run the latest `.mjs` setup with Node.js 24 or newer. Setup checks installation registration, shared startup settings and the standard folder. Use `--existing-directory "C:\path\to\addon"` for an unregistered portable copy or multiple detected copies. Saved links, accounts, settings and music stay in their existing location. Unchanged owned obsolete program files are removed; edited/unknown files remain. Updates are manual.
 - **Uninstall:** Use **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Finish or cancel active work, then confirm. Music, library playlists, saved settings, edited files and companion add-ons are retained.
 - **Updating rbxport itself:** Its installation is separate from the add-on and saved data. Update rbxport normally, close it, then reopen it through the Playlist Sync shortcut. Compatibility is currently tested with rbxport 1.9.0. A newer release can change automation commands, the local connection or sidebar structure and require an add-on update; compatibility is not guaranteed.
 - **Can’t find the panel?** With automatic attachment configured, use the standard compatible rbxport Start Menu or Desktop shortcut. Otherwise use the **Playlist Sync** shortcut. Look below Tag List. A missing local connection or changed sidebar produces a launcher error. A failed library check stays visible in the popup with syncing disabled. The older Store 0.19.3 entry remains incompatible even with startup enabled. Use **Reconnect** after correcting the connection.

@@ -2,9 +2,9 @@
 
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
-**Windows x64 · Experimental development v0.11.5 (unreleased) · Tested host: rbxport 1.9.0**
+**Windows x64 · Experimental v0.11.5 · Node.js 24 or newer required for setup · Tested host: rbxport 1.9.0**
 
-**Startup correction in development:** A shared JavaScript launcher now replaces the unsigned helper from the interim [v0.11.4 build](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/tag/v0.11.4). It uses the checksum-verified, publisher-signed official Node.js runtime. A signed runtime does not sign the add-on code or prove complete Smart App Control compatibility. A final correction has not been released; keep Windows protection enabled.
+**Install Node.js first:** Download and install the official [Node.js runtime](https://nodejs.org/en/download), version 24 or newer. The add-on ships as one **`.mjs` setup file**. Run it with Node; double-clicking it may open an editor. You do not need to unpack the source ZIP. Setup installs its own verified private runtime for subsequent rbxport launches.
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -21,9 +21,9 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 ## Quick start
 
 1. Install [rbxport for Windows](https://github.com/chrisle/rbxport/releases/latest).
-2. Download **`playlist-sync-<version>-windows-setup.exe`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
-3. Run the EXE and click **Install / Update**. Setup installs the tools and connects your existing rbxport shortcuts; internet is required, administrator access is not. Close rbxport before updating; setup stops an idle older Sync service for you.
-4. Open rbxport from its Start Menu or Desktop shortcut with the default attachment option, then click **Playlist sync** below **Tag List**. If you turned that option off, use the **Playlist Sync** shortcut.
+2. Install [Node.js 24 or newer](https://nodejs.org/en/download), then download **`playlist-sync-0.11.5-windows-setup.mjs`** from [Releases](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest).
+3. Close rbxport. Open a terminal in the download folder and run `node .\playlist-sync-0.11.5-windows-setup.mjs`. Review the installation/data folders and enter **y** to install or update. Internet is required; administrator access is not. Setup verifies its tools and connects your regular rbxport shortcuts.
+4. Open rbxport from its regular Start Menu or Desktop shortcut, then click **Playlist sync** below **Tag List**. The setup file is only needed for installation and later updates.
 5. Choose **+ Link playlist**, paste a Spotify/SoundCloud URL and select an existing playlist or create one. Review the preview, then click **Sync**.
 
 The default setup connects your original per-user **rbxport** Start Menu and Desktop shortcuts to every enabled add-on: Playlist Sync and, if separately installed and enabled, Playlist Wizard. Opening either starts one host and both services; closing that host cancels their work and stops them. Integration removes conventional separate add-on and sign-in shortcuts. The rbxport name and original executable icon are retained. Use `Configure-Rbxport-Startup.ps1` to enable this later. Customized shortcuts are preserved; restore an ordinary rbxport shortcut if configuration reports a conflict. Direct executable and older Store launches bypass the wrapper.
@@ -35,17 +35,17 @@ On 24 October, native Explorer launches of the installed Desktop and Start Menu 
 
 ### Install, update and uninstall
 
-Every release provides one **`playlist-sync-<version>-windows-setup.exe`**. Extraction, the private runtime and checksum-verified audio tools are handled automatically. Internet and an existing compatible rbxport installation are required. Administrator access is not required.
+Every JavaScript release provides one **`playlist-sync-<version>-windows-setup.mjs`**, public source and SHA-256 checksums. Install official Node.js 24 or newer once, then run the setup using `node <downloaded-file.mjs>`. Extraction, the private runtime and checksum-verified audio tools are handled automatically. Windows x64, internet and an existing compatible rbxport installation are required. Administrator access is not required. Windows protections stay enabled; a script is not a promise of compatibility with every application-control policy.
 
 Updates remove obsolete program files only when their previous ownership and checksums match; recognized legacy setup scripts are also removed. Edited files, unknown files and saved data are retained.
 
-For an update, close rbxport and run the new EXE. Setup finds the existing copy through registration, shortcuts or the standard folder, updates it in place and retains its saved-data location. It stops an idle service belonging to that installation, including older versions. Active work and unrelated running copies block the update. For an unregistered portable copy, use **Choose existing folder**. Multiple detected copies require that choice.
+For an update, close rbxport and run the new `.mjs` file with Node. Setup finds the existing copy through its registration, shared startup settings or the standard folder, updates it in place and retains its saved-data location. It can stop an idle service belonging to that exact installation; active work and unrelated running copies block the update. For an unregistered portable copy or multiple detected copies, add `--existing-directory "C:\path\to\installed-addon"`. Use `--help` for the supported folder/cache options. No automatic updater is installed.
 
-**Show Playlist Sync when rbxport opens** is checked by default. It configures the original rbxport shortcuts. Disabling or uninstalling one add-on keeps the shared launcher working for the other; disabling the last restores unchanged original shortcuts byte for byte. The host executable is unchanged. The installer’s **Cancel**, Escape and window close button request cancellation; if file installation has begun, setup finishes that step safely before closing.
+JavaScript setup configures the original rbxport Desktop and Start Menu shortcuts after showing that change in its confirmation. Disabling or uninstalling one add-on keeps the shared launcher working for the other; disabling the last restores unchanged original shortcuts byte for byte. The host executable is unchanged. Answer **n** to cancel before installation, or use **Ctrl+C** during setup to request cancellation and program-file recovery. Saved data and music are never setup payloads.
 
-Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through the EXE adds this uninstall option.
+Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through JavaScript setup adds this uninstall option.
 
-The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. JavaScript startup does not require a publisher certificate for our own launcher. The public setup EXE still has separate signing and exact-candidate Smart App Control gates: this change does not make an unsigned setup trusted or remove those release checks. Building a distributable setup still requires `Build-Installer.ps1 -PayloadDirectory <verified signed input>`. Trusted setup signing is unresolved; no new release is available. [Code signing policy](docs/code-signing.md).
+The complete source, including the installer, remains public. Releases include the single `.mjs` setup, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. This path builds no custom setup EXE and does not wait for a signing certificate. Optional native EXE builds retain their separate signing/validation gates. The Node runtime remains unchanged and publisher-signed; our JavaScript is not represented as Authenticode-signed. [Distribution and signing details](docs/code-signing.md).
 
 ## What it does
 
