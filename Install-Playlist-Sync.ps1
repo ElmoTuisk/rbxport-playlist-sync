@@ -9,6 +9,7 @@ param(
     [switch]$NoShortcuts,
     [switch]$NoLaunch,
     [switch]$StartWithRbxport,
+    [switch]$Offline,
     [switch]$NoRegistry
 )
 $ErrorActionPreference = 'Stop'
@@ -26,7 +27,8 @@ $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'scripts\Desktop.ps1')
 . (Join-Path $PSScriptRoot 'scripts\Installation.ps1')
 . (Join-Path $PSScriptRoot 'scripts\ReleaseTrust.ps1')
-if($StartWithRbxport) { Assert-RbxportReleaseTrust -Root $PSScriptRoot -RequireLauncher }
+# JavaScript startup uses the verified official Node runtime installed below.
+# Signed release setup validation remains in the packaging/publication pipeline.
 $version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'package.json') -Raw | ConvertFrom-Json).version
 $selection = @{DefaultRoot=$InstallDirectory;DefaultData=$DataDirectory}
 if ($ExistingDirectory) { $selection.ExplicitRoot=$ExistingDirectory; $selection.RequireExisting=$true }
@@ -61,6 +63,7 @@ function Get-VerifiedDownload {
     if ($Hash -notmatch '^[a-f0-9]{64}$') { throw 'Invalid dependency checksum' }
     $destination = Join-Path $CacheDirectory $Filename
     if ((Test-Path -LiteralPath $destination) -and (Get-PlaylistSyncFileHash $destination) -eq $Hash) { return $destination }
+    if($Offline) { throw "Verified cached dependency is unavailable: $Filename. Offline setup will not download it." }
     $temporary = "$destination.partial"
     Test-SetupCancellation
     Set-SetupStatus 'working' "Downloading $Filename ..."
@@ -88,7 +91,6 @@ Set-SetupStatus 'installing' 'Installing verified files. Closing setup will fini
 $runtime = Join-Path $InstallDirectory '.runtime'
 $tools = Join-Path $runtime 'tools'
 $include = @('src', 'public', 'scripts', 'docs', 'README.md', 'PROJECT_OVERVIEW.md', 'AGENTS.md', 'CHANGELOG.md', 'LICENSE', 'package.json', 'manifest.json', 'dependencies.json', 'Start-Playlist-Sync.ps1', 'Stop-Playlist-Sync.ps1', 'Launch-Playlist-Sync.cmd', 'Configure-Rbxport-Startup.ps1', 'Uninstall-Playlist-Sync.ps1')
-if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'release\Start-Rbxport.exe')) { $include += 'release' }
 $include += 'release-signing.json'
 $ownedFiles = @('.runtime\node.exe','.runtime\tools\yt-dlp.exe','.runtime\tools\ffmpeg.exe','.runtime\tools\ffprobe.exe')
 foreach ($item in $include) {
@@ -156,7 +158,11 @@ Write-PlaylistSyncInstallRecord -Root $InstallDirectory -DataDirectory $DataDire
 Write-Host "Installed successfully in $InstallDirectory. Open the Playlist Sync shortcut whenever you need it."
 if ($StartWithRbxport) { & (Join-Path $InstallDirectory 'Configure-Rbxport-Startup.ps1') -NoStart }
 if (-not $NoLaunch) {
-    if($StartWithRbxport) { Start-Process -FilePath (Join-Path $env:LOCALAPPDATA 'rbxport-addons\Start-Rbxport.exe') }
+    if($StartWithRbxport) {
+        . (Join-Path $InstallDirectory 'scripts\HostShortcuts.ps1')
+        $javascript=Initialize-RbxportJavaScriptLauncher (Join-Path $env:LOCALAPPDATA 'rbxport-addons')
+        Start-Process -FilePath $javascript.executable -ArgumentList $javascript.arguments -WindowStyle Hidden
+    }
     else {
         $launcher=Join-Path $InstallDirectory 'Start-Playlist-Sync.ps1'
         Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $launcher + '"'))

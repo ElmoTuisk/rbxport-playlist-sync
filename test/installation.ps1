@@ -19,7 +19,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'Install-Playlist-Sync.ps1') -Destination $source
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\Installation.ps1') -Destination (Join-Path $source 'scripts')
     Copy-Item -LiteralPath (Join-Path $repo 'scripts\obsolete-program-files.json') -Destination (Join-Path $source 'scripts')
-    Copy-Item -LiteralPath (Join-Path $repo 'scripts\RbxportLauncher.cs') -Destination (Join-Path $source 'scripts')
+    Copy-Item -LiteralPath (Join-Path $repo 'scripts\Start-Rbxport.mjs') -Destination (Join-Path $source 'scripts')
     Set-Content -LiteralPath (Join-Path $source 'scripts\Desktop.ps1') "function Find-PlaylistSyncRbxport { return 'fixture-rbxport.exe' }`nfunction Test-PlaylistSyncServiceListening { return `$false }"
     @{name='rbxport-playlist-sync-addon';version='0.10.5'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source 'package.json')
     Copy-Item -LiteralPath $NodePath -Destination (Join-Path $cache 'node.exe')
@@ -45,9 +45,13 @@ try {
     try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $blockedTarget -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry -CancellationFile $cancelFile -StatusFile $statusFile } catch { $cancelled=$_.Exception -is [OperationCanceledException] }
     Assert-Install ($cancelled -and -not (Test-Path -LiteralPath $blockedTarget)) 'Cancelling before setup must leave the existing installation untouched'
     Assert-Install ((Get-Content -LiteralPath $statusFile -Raw).StartsWith('cancelled')) 'Cancellation must be reported without a raw PowerShell stack'
+    $offlineTarget=Join-Path $fixture 'offline-refusal';$offlineCache=Join-Path $fixture 'empty-cache';$offlineRejected=$false
+    try { & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $offlineTarget -CacheDirectory $offlineCache -NoShortcuts -NoLaunch -NoRegistry -Offline } catch { $offlineRejected=$_.Exception.Message -match 'Offline setup will not download' }
+    Assert-Install ($offlineRejected -and -not(Test-Path -LiteralPath (Join-Path $offlineTarget 'src\server.mjs'))) 'Offline setup must refuse a missing cached dependency before copying program files'
     & (Join-Path $source 'Install-Playlist-Sync.ps1') -InstallDirectory $target -DataDirectory $data -CacheDirectory $cache -NoShortcuts -NoLaunch -NoRegistry
     $record = Get-Content -LiteralPath (Join-Path $target 'installed.json') -Raw | ConvertFrom-Json
     Assert-Install ($record.product -eq 'rbxport-playlist-sync' -and $record.files.Count -gt 10) 'Installation receipt missing'
+    Assert-Install (@($record.files | Where-Object { $_.path.Replace('\','/') -eq 'scripts/Start-Rbxport.mjs' }).Count -eq 1) 'The JavaScript launcher must be included in managed installation/update ownership'
     # The next update must remove only unchanged files retired by the previous version.
     foreach($name in @('retired.mjs','retired-edited.mjs')) {
         Set-Content -LiteralPath (Join-Path $target ('src\'+$name)) '// retired fixture'

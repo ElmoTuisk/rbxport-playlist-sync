@@ -1,10 +1,13 @@
 # Changelog
 
-## 0.11.5 — 2026-10-23 (unreleased)
+## 0.11.5 — 2026-10-24 (unreleased)
+
+- Verify both installed original shortcuts through native Explorer, both add-on popups and normal close/reopen on rbxport 1.9.0. Repair local packaged-tool AppData redirection; preserve saved data and restore diagnostic pause arguments. Public setup signing remains outstanding.
 
 - Remove obsolete program files during updates only after ownership/checksum verification. Recognize historical setup/packager scripts by public SHA-256 values; retain changed or unknown files and all saved data.
 
-- Require prebuilt trusted, timestamped launcher/script signatures before shortcut integration. Remove local launcher compilation; signing approval is pending and unsigned source integration fails closed.
+- Replace the native/PowerShell startup chain with a shared JavaScript launcher targeting verified official Node.js directly. Start both services concurrently, authenticate sidebar readiness, preserve exact-host lifetime and recover abandoned startup locks. Preserve original shortcuts, custom data paths and companion independence. The initial parent is minimized; a brief console is possible.
+- Verify official Node checksums and its OpenJS publisher signature before shortcut configuration. A signed runtime does not sign our JavaScript or establish whole-installation Smart App Control compatibility. Setup signing/publication gates remain in place; no new release has been published.
 - Prepare two-stage provider signing, final signed setup verification and post-signing checksums. Publication requires the exact candidate’s successful Smart App Control validation hash; no signed release has been published.
 
 - Start enabled add-ons concurrently so Wizard does not wait for Sync readiness. Still verify both sidebar buttons and report failures independently.

@@ -4,7 +4,7 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 
 **Windows x64 · Experimental development v0.11.5 (unreleased) · Tested host: rbxport 1.9.0**
 
-**Startup fix pending:** Windows Smart App Control can block the unsigned helper used by the interim [v0.11.4 build](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/tag/v0.11.4), now marked as a pre-release. CI passing does not establish Smart App Control compatibility. A final compatible startup correction has not been released; keep Windows protection enabled.
+**Startup correction in development:** A shared JavaScript launcher now replaces the unsigned helper from the interim [v0.11.4 build](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/tag/v0.11.4). It uses the checksum-verified, publisher-signed official Node.js runtime. A signed runtime does not sign the add-on code or prove complete Smart App Control compatibility. A final correction has not been released; keep Windows protection enabled.
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
@@ -29,7 +29,9 @@ Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. R
 The default setup connects your original per-user **rbxport** Start Menu and Desktop shortcuts to every enabled add-on: Playlist Sync and, if separately installed and enabled, Playlist Wizard. Opening either starts one host and both services; closing that host cancels their work and stops them. Integration removes conventional separate add-on and sign-in shortcuts. The rbxport name and original executable icon are retained. Use `Configure-Rbxport-Startup.ps1` to enable this later. Customized shortcuts are preserved; restore an ordinary rbxport shortcut if configuration reports a conflict. Direct executable and older Store launches bypass the wrapper.
 
 
-The development installer now requires a prebuilt launcher and PowerShell scripts signed by an approved, trusted publisher. No launcher is compiled on the user’s computer. Signing approval is pending; this source build refuses automatic shortcut integration. [Code signing policy](docs/code-signing.md).
+The development startup path uses `scripts/Start-Rbxport.mjs` directly through official Node.js; it does not compile or run a custom launcher EXE. The shortcut starts a minimized, short-lived Node parent, then a hidden worker starts both services concurrently. A brief minimized console may be visible; this is not a guarantee of console-free startup. PowerShell remains for installation/configuration and one fixed, read-only host-process inventory command. Startup failures open their private diagnostic text in Windows Notepad. [Startup and signing policy](docs/code-signing.md).
+
+On 24 October, native Explorer launches of the installed Desktop and Start Menu shortcuts verified both add-ons, both popups and normal close/reopen on rbxport 1.9.0, with saved state unchanged. The check also caught and repaired packaged-tool AppData redirection; the final shortcuts use physical user files. This is local startup evidence; public setup signing and clean-machine validation remain outstanding. [Verification details](docs/validation.md).
 
 ### Install, update and uninstall
 
@@ -43,7 +45,7 @@ For an update, close rbxport and run the new EXE. Setup finds the existing copy 
 
 Remove a managed installation through **Playlist Sync → gear → Uninstall Playlist Sync**, or Windows **Installed apps**. Confirming removes its program files, shortcuts and its own startup registration; music, playlists, saved settings and Playlist Wizard are retained. Finish or cancel any sync first. Edited/unrecognized files are retained. Updating an older portable copy through the EXE adds this uninstall option.
 
-The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. The release pipeline signs the launcher/scripts before building and signing the setup, then computes checksums. Building a setup requires `Build-Installer.ps1 -PayloadDirectory <verified signed input>`. Publication additionally requires the exact signed setup’s Smart App Control validation hash. Trusted signing is pending; no completed fix is available yet. [Code signing policy](docs/code-signing.md).
+The complete source, including the installer, remains public in this repository. Releases include the EXE, a source ZIP and SHA-256 checksums after Windows and Linux CI pass. JavaScript startup does not require a publisher certificate for our own launcher. The public setup EXE still has separate signing and exact-candidate Smart App Control gates: this change does not make an unsigned setup trusted or remove those release checks. Building a distributable setup still requires `Build-Installer.ps1 -PayloadDirectory <verified signed input>`. Trusted setup signing is unresolved; no new release is available. [Code signing policy](docs/code-signing.md).
 
 ## What it does
 
