@@ -12,6 +12,10 @@ No live add-on installation, rbxport launch/restart, real music download/analysi
 
 The final publication-candidate full Windows run passed **285/285 tests, no failures or skips**, in 16.40 seconds. This includes all final installer changes and both distributions' 13 installer cases.
 
+Published [Sync v0.11.5](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/tag/v0.11.5) and [Wizard v0.1.2](https://github.com/ElmoTuisk/rbxport-playlist-wizard/releases/tag/v0.1.2) as the latest stable releases. Both the [Sync release workflow](https://github.com/ElmoTuisk/rbxport-playlist-sync/actions/runs/40103048401) and [Wizard release workflow](https://github.com/ElmoTuisk/rbxport-playlist-wizard/actions/runs/40102997056) passed Windows/Linux tests before publishing the `.mjs` setup, source ZIP and `SHA256SUMS.txt`. Their release notes repeat the Node.js 24 prerequisite and setup command.
+
+Downloaded all six published assets. GitHub asset digests and published checksums matched; both downloaded setups passed `--verify` without installation. Sync's 478,504-byte setup contains 62 verified program files; Wizard's 279,019-byte setup contains 52. Their source ZIPs contain 106 and 85 files respectively and passed the private-data/compiled-runtime path scan. This verifies the public artifacts, with fresh-machine interactive installation still outside the evidence above.
+
 ## JavaScript startup simplification — 24 October 2026, unreleased
 
 The shared shortcut now targets an unchanged official Node.js runtime and `Start-Rbxport.mjs`, replacing the native EXE and PowerShell-file startup chain. Configuration verifies the pinned Node checksum and valid OpenJS publisher signature before changing shortcuts. The shared runtime survives removing either independent add-on. Installation/configuration and a fixed read-only host-process inventory still use PowerShell. A brief minimized parent console is possible; the live checks below do not establish console-free startup. No trust store or application-control setting is changed. A signed runtime is not a signature of our JavaScript.
