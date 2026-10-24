@@ -1,10 +1,15 @@
 # Playlist Sync for rbxport
 
+> [!IMPORTANT]
+> **Install Node.js 24 or newer before running this add-on's setup.**
+>
+> **[Download Node.js for Windows](https://nodejs.org/en/download)**
+>
+> Install it once for both Playlist Sync and Playlist Wizard, then open a new terminal and follow the quick start below. Run the downloaded `.mjs` setup with `node`; double-clicking it may open an editor.
+
 Sync Spotify and SoundCloud playlists from a small popup beneath **Tag List**. Reuse your existing songs, find missing recordings and keep the source playlist's order.
 
 **Windows x64 · Experimental v0.11.5 · Node.js 24 or newer required for setup · Tested host: rbxport 1.9.0**
-
-**Install Node.js first:** Download and install the official [Node.js runtime](https://nodejs.org/en/download), version 24 or newer. The add-on ships as one **`.mjs` setup file**. Run it with Node; double-clicking it may open an editor. You do not need to unpack the source ZIP. Setup installs its own verified private runtime for subsequent rbxport launches.
 
 **[Download Windows setup](https://github.com/ElmoTuisk/rbxport-playlist-sync/releases/latest)** · [Report an issue](https://github.com/ElmoTuisk/rbxport-playlist-sync/issues) · [Changelog](CHANGELOG.md)
 
